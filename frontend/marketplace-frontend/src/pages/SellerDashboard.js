@@ -67,7 +67,7 @@ function SellerDashboardPage() {
     //fetch notification
   const fetchNotifications = () => {
 
-    API.get("/products/seller/notified")
+    API.get("/products/seller/notifications")
       .then(res => setNotifications(res.data))
       .catch(() => {
         setSnackbar({

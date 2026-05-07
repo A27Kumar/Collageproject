@@ -28,4 +28,17 @@ public interface ProductRepository extends MongoRepository<Product, String> {
     Page<Product> findByNameContainingIgnoreCaseAndApprovedTrue(String name, Pageable pageable);
 
     List<Product> findBySellerIdAndApprovedTrueAndNotifiedFalse(String sellerId);
-}
+    
+    Page<Product> findByApprovedTrueAndCollegeIgnoreCase(String college, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCityIgnoreCase(String city, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCollegeIgnoreCaseAndNameContainingIgnoreCase(
+        String college, String name, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCityIgnoreCaseAndNameContainingIgnoreCase(
+        String city, String name, Pageable pageable);
+    
+        List<Product> findByCollegeContainingIgnoreCase(String college);
+        List<Product> findByCityContainingIgnoreCase(String city);
+    }

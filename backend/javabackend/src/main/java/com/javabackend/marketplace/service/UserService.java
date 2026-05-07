@@ -61,8 +61,12 @@ public class UserService {
         throw new IllegalArgumentException("Invalid email or password");
     }
 
-
-    return jwtUtil.generateToken(user.getId(), user.getRole());
+    return jwtUtil.generateToken(
+        user.getId(),
+        user.getRole(),
+        user.getCity(),
+        user.getCollege()
+    );
 }
 
 

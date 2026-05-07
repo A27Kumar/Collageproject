@@ -114,30 +114,6 @@ function ProductDetailsPage() {
     setSnackbar({ open: true, type: "success", message: "Added to cart" });
   };
     
-    <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-
-     <Button
-       variant={sortType === "latest" ? "contained" : "outlined"}
-      onClick={() => setSortType("latest")}
-     >
-       Latest
-     </Button>
- 
-     <Button
-      variant={sortType === "top" ? "contained" : "outlined"}
-      onClick={() => setSortType("top")}
-     >
-       Top Rated
-     </Button>
-
-     <Button
-        variant={sortType === "liked" ? "contained" : "outlined"}
-        onClick={() => setSortType("liked")}
-      >
-        Most Liked
-     </Button>
-
-    </Box>
 
   // 🔥 Add review
   const handleReview = () => {
@@ -308,6 +284,31 @@ function ProductDetailsPage() {
           Reviews
         </Typography>
 
+        <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+
+     <Button
+       variant={sortType === "latest" ? "contained" : "outlined"}
+      onClick={() => setSortType("latest")}
+     >
+       Latest
+     </Button>
+ 
+     <Button
+      variant={sortType === "top" ? "contained" : "outlined"}
+      onClick={() => setSortType("top")}
+     >
+       Top Rated
+     </Button>
+
+     <Button
+        variant={sortType === "liked" ? "contained" : "outlined"}
+        onClick={() => setSortType("liked")}
+      >
+        Most Liked
+     </Button>
+
+    </Box>
+
         {/* ADD REVIEW */}
         {role === "BUYER" && (
           <Box sx={{ mt: 2 }}>
@@ -332,7 +333,7 @@ function ProductDetailsPage() {
         {/* REVIEW LIST */}
         {reviews.map(r => {
 
-          const isOwner = r.UserId === userId;
+          const isOwner = r.userId === userId;
           const isSeller = role === "SELLER";
 
           return (

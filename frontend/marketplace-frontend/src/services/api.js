@@ -18,7 +18,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: "http://192.168.1.7:8080",
 });
 
 // 🔐 REQUEST INTERCEPTOR (attach token)

@@ -19,7 +19,9 @@ function RegisterPage() {
     name: "",
     email: "",
     password: "",
-    role: "BUYER"
+    role: "BUYER",
+    city: "",
+    college: ""
   });
 
   const [snackbar, setSnackbar] = useState({
@@ -109,6 +111,22 @@ function RegisterPage() {
         <MenuItem value="BUYER">Buyer</MenuItem>
         <MenuItem value="SELLER">Seller</MenuItem>
       </TextField>
+      
+      <TextField
+        label="City"
+        name="city"
+        value={form.city}
+        onChange={handleChange}
+        sx={{ mb: 3 }}
+      />
+
+      <TextField
+        label="College"
+        name="college"
+        value={form.college}
+        onChange={handleChange}
+        sx={{ mb: 2 }}
+      />
 
       <Button
         fullWidth

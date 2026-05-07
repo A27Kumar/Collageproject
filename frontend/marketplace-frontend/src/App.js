@@ -12,6 +12,11 @@ import UpdateProductPage from "./pages/UpdateProductPage";
 import RegisterPage from "./pages/RegisterPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminRoute from "./pages/AdminRoute";
+import RequestsPage from "./pages/RequestsPage";
+import CommunityPage from "./pages/CommunityPage";
+import DiscussionPage from "./pages/DiscussionPage";
+import GlobalSearchPage from "./pages/GlobalSearchPage";
+
 
 
 function App() {
@@ -29,7 +34,12 @@ function App() {
         <Route path="/seller-dashboard" element={<SellerDashboardPage />} />
         <Route path="/update-product/:id" element={<UpdateProductPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/admin" element={  <AdminRoute>   <AdminDashboardPage /> </AdminRoute>  }/>  </Routes>
+        <Route path="/admin" element={  <AdminRoute>   <AdminDashboardPage /> </AdminRoute>  }/> 
+        <Route path="/requests" element={<RequestsPage />} />
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community/post/:id" element={<DiscussionPage />} />
+        <Route path="/smart-search" element={<GlobalSearchPage />} />
+        </Routes>
     </Router>
   );
 }

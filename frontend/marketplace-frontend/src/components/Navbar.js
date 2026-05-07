@@ -10,6 +10,8 @@ function Navbar() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(null);
   const [search, setSearch] = useState("");
+  const [city, setCity] = useState("");
+  const [college, setCollege] = useState("");
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
@@ -19,6 +21,8 @@ function Navbar() {
       try {
         const decoded = jwtDecode(storedToken);
         setRole(decoded.role);
+        setCity(decoded.city || "");
+        setCollege(decoded.college || "");
       } catch {
         localStorage.removeItem("token");
         setToken(null);
@@ -67,23 +71,23 @@ function Navbar() {
         </Typography>
 
         {/* 🔥 SEARCH */}
-        <TextField
-          size="small"
-          placeholder="Search products..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              navigate(`/?search=${search}`);
-            }
-          }}
-          sx={{
-            backgroundColor: "white",
-            borderRadius: 1,
-            marginRight: 2,
-            width: "250px"
-          }}
-        />
+      <TextField
+     size="small"
+     placeholder="Search products..."
+     value={search}
+     onChange={(e) => setSearch(e.target.value)}
+     onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        navigate(`/?search=${search}&city=${city}&college=${college}`);
+      }
+     }}
+     sx={{
+        backgroundColor: "white",
+        borderRadius: 1,
+        marginRight: 2,
+        width: "250px"
+      }}
+      />
 
         {!token && (
           <Button color="inherit" onClick={() => navigate("/login")}>
@@ -133,6 +137,22 @@ function Navbar() {
             Admin
           </Button>
         )}
+
+        <Button color="inherit" onClick={() => navigate("/requests")}>
+         Requests
+        </Button> 
+
+        <Button color="inherit" onClick={() => navigate("/community")}>
+        Community
+        </Button>
+
+        <Button
+         color="inherit"
+         onClick={() => navigate("/smart-search")}
+         >
+         AI Search
+        </Button>
+        
       </Toolbar>
     </AppBar>
   );

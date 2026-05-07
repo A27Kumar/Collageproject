@@ -16,6 +16,8 @@ public class Product {
     private String sellerId;
     private boolean approved = false;
     private boolean notified = false;
+    private String city;
+    private String college;
 
     public Product() {}
 
@@ -44,4 +46,10 @@ public class Product {
 
     public boolean isNotified() { return notified; }
     public void setNotified(boolean notified) { this.notified = notified; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getCollege() { return college; }
+    public void setCollege(String college) { this.college = college; }
 }

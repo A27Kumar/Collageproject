@@ -14,10 +14,12 @@ public class JwtUtil {
     private final String SECRET = "my_super_secure_secret_key_which_is_long_enough_123456";
     private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
 
-    public String generateToken(String userId, String role) {
+    public String generateToken(String userId, String role, String city, String college) {
         return Jwts.builder()
                 .setSubject(userId)
                 .claim("role", role)
+                .claim("city", city)
+                .claim("college", college)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 86400000))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -30,5 +32,6 @@ public class JwtUtil {
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
+
     }
 }

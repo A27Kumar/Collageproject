@@ -1,0 +1,3797 @@
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\components\Navbar.js =====
+
+import React, { useState, useEffect } from "react";
+import { AppBar, Toolbar, Typography, Button, TextField } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
+
+function Navbar() {
+
+  const navigate = useNavigate();
+
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [role, setRole] = useState(null);
+  const [search, setSearch] = useState("");
+  const [city, setCity] = useState("");
+  const [college, setCollege] = useState("");
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+
+    if (storedToken) {
+      try {
+        const decoded = jwtDecode(storedToken);
+        setRole(decoded.role);
+        setCity(decoded.city || "");
+        setCollege(decoded.college || "");
+      } catch {
+        localStorage.removeItem("token");
+        setToken(null);
+        setRole(null);
+      }
+    } else {
+      setRole(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newToken = localStorage.getItem("token");
+      setToken(newToken);
+
+      if (newToken) {
+        const decoded = jwtDecode(newToken);
+        setRole(decoded.role);
+      } else {
+        setRole(null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken(null);
+    setRole(null);
+    navigate("/login");
+  };
+
+  return (
+    <AppBar position="static">
+      <Toolbar>
+
+        {/* Logo */}
+        <Typography
+          variant="h6"
+          sx={{ flexGrow: 1, cursor: "pointer" }}
+          onClick={() => navigate("/")}
+        >
+          Marketplace
+        </Typography>
+
+        {/* 🔥 SEARCH */}
+      <TextField
+     size="small"
+     placeholder="Search products..."
+     value={search}
+     onChange={(e) => setSearch(e.target.value)}
+     onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        navigate(`/?search=${search}&city=${city}&college=${college}`);
+      }
+     }}
+     sx={{
+        backgroundColor: "white",
+        borderRadius: 1,
+        marginRight: 2,
+        width: "250px"
+      }}
+      />
+
+        {!token && (
+          <Button color="inherit" onClick={() => navigate("/login")}>
+            Login
+          </Button>
+        )}
+
+        {role === "SELLER" && (
+          <>
+            <Button color="inherit" onClick={() => navigate("/add-product")}>
+              Add Product
+            </Button>
+            <Button color="inherit" onClick={() => navigate("/seller-orders")}>
+              Manage Orders
+            </Button>
+            <Button color="inherit" onClick={() => navigate("/seller-dashboard")}>
+              Dashboard
+            </Button>
+          </>
+        )}
+
+        {!token && (
+       <>
+       <Button color="variant" onClick={() => navigate("/register")}>Register</Button>
+       </>
+         )}
+
+        {role === "BUYER" && (
+          <>
+            <Button color="inherit" onClick={() => navigate("/my-orders")}>
+              My Orders
+            </Button>
+            <Button color="inherit" onClick={() => navigate("/cart")}>
+              Cart
+            </Button>
+          </>
+        )}
+
+        {token && (
+          <Button color="inherit" onClick={handleLogout}>
+            Logout
+          </Button>
+        )}
+        
+        {role === "ADMIN" && (
+          <Button color="inherit" onClick={() => navigate("/admin")}>
+            Admin
+          </Button>
+        )}
+
+        <Button color="inherit" onClick={() => navigate("/requests")}>
+         Requests
+        </Button> 
+
+        <Button color="inherit" onClick={() => navigate("/community")}>
+        Community
+        </Button>
+
+        <Button
+         color="inherit"
+         onClick={() => navigate("/smart-search")}
+         >
+         AI Search
+        </Button>
+        
+      </Toolbar>
+    </AppBar>
+  );
+}
+
+export default Navbar;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\components\NearbyProducts.js =====
+
+import React, { useEffect, useState } from "react";
+import {
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardMedia,
+  Chip
+} from "@mui/material";
+import API from "../services/api";
+import { jwtDecode } from "jwt-decode";
+
+
+function NearbyProducts() {
+
+  const [collegeProducts, setCollegeProducts] = useState([]);
+  const [cityProducts, setCityProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) return;
+
+    const decoded = jwtDecode(token);
+    const city = decoded.city || "";
+    const college = decoded.college || "";
+
+    if (!city && !college) return;
+
+    API.get(`/products/nearby?city=${city}&college=${college}`)
+      .then(res => {
+        setCollegeProducts(res.data.college || []);
+        setCityProducts(res.data.city || []);
+      })
+      .catch(() => {
+        console.log("Failed to load nearby products");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+      console.log("Nearby component mounted");
+
+  }, []); // ✅ CLOSED PROPERLY
+
+  // ✅ OUTSIDE useEffect
+  const renderProducts = (products, type) => (
+    <Grid container spacing={2} sx={{ mt: 1 }}>
+      <Typography variant="h4">Near By Products</Typography>
+      {products.slice(0, 6).map(p => (
+        <Grid item xs={12} sm={6} md={4} key={p.id}>
+          <Card sx={{ borderRadius: 3 }}>
+            <CardMedia
+              component="img"
+              height="160"
+              image={p.imageUrl || "https://via.placeholder.com/300"}
+            />
+            <CardContent>
+              <Typography fontWeight="bold">{p.name}</Typography>
+              <Typography>₹ {p.price}</Typography>
+              <Chip
+                label={type === "college" ? "From your college" : "From your city"}
+                color={type === "college" ? "success" : "primary"}
+                size="small"
+                sx={{ mt: 1 }}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+      ))}
+    </Grid>
+  );
+
+  // ✅ CORRECT PLACE
+  if (loading) return null;
+
+  return (
+    <div style={{ marginTop: "30px" }}>
+      {collegeProducts.length > 0 && (
+        <>
+          <Typography variant="h5" fontWeight="bold">
+            Nearby in Your College
+          </Typography>
+          {renderProducts(collegeProducts, "college")}
+        </>
+      )}
+
+      {collegeProducts.length === 0 && cityProducts.length > 0 && (
+        <>
+          <Typography variant="h5" fontWeight="bold" sx={{ mt: 4 }}>
+            Nearby in Your City
+          </Typography>
+          {renderProducts(cityProducts, "city")}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default NearbyProducts;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\AddProductPage.js =====
+
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  Box
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+import { jwtDecode } from "jwt-decode";
+
+function AddProductPage() {
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const navigate = useNavigate();
+
+  // ✅ Route Protection
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode(token);
+
+      if (decoded.role !== "SELLER") {
+        navigate("/",{ state: { refresh: true } });
+      }
+    } catch (err) {
+      console.log("Invalid token");
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+
+  }, [navigate]);
+
+  // ✅ Submit handler
+  const handleSubmit = () => {
+
+    // Validation
+    if (!name || !description || !price || !category) {
+      alert("All fields are required");
+      return;
+    }
+
+    if (price <= 0) {
+      alert("Price must be greater than 0");
+      return;
+    }
+
+    setLoading(true);
+
+    API.post("/products", {
+      name,
+      description,
+      price,
+      category,
+      imageUrl  // Placeholder image
+    })
+    .then(() => {
+      navigate("/");
+    })
+    .catch(err => {
+      console.log(err);
+      alert(err.response?.data || "Error adding product");
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Paper elevation={6} sx={{ padding: 4, marginTop: 8 }}>
+
+        <Typography variant="h4" gutterBottom>
+          Add Product
+        </Typography>
+
+        <Box display="flex" flexDirection="column" gap={2}>
+          
+          <TextField
+            label="Image URL"
+            fullWidth
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+          />
+
+          <TextField
+            label="Product Name"
+            fullWidth
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <TextField
+            label="Description"
+            fullWidth
+            multiline
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <TextField
+            label="Price"
+            type="number"
+            fullWidth
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+
+          <TextField
+            label="Category"
+            fullWidth
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+
+          <Button
+            variant="contained"
+            size="large"
+            onClick={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? "Adding..." : "Add Product"}
+          </Button>
+
+        </Box>
+
+      </Paper>
+    </Container>
+  );
+}
+
+export default AddProductPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\AdminDashboardPage.js =====
+
+
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Button,
+  Chip
+} from "@mui/material";
+
+function AdminDashboardPage() {
+
+  const [stats, setStats] = useState({});
+  const [users, setUsers] = useState([]);
+  const [pendingProducts, setPendingProducts] = useState([]);
+
+  useEffect(() => {
+    fetchStats();
+    fetchUsers();
+    fetchPending();
+  }, []);
+
+  const fetchStats = () => {
+    API.get("/admin/stats")
+      .then(res => setStats(res.data));
+  };
+
+  const fetchUsers = () => {
+    API.get("/admin/users")
+      .then(res => setUsers(res.data));
+  };
+
+  const fetchPending = () => {
+    API.get("/admin/pending-products")
+      .then(res => setPendingProducts(res.data));
+  };
+
+  const banUser = (id) => {
+    API.put("/admin/ban/" + id).then(fetchUsers);
+  };
+
+  const unbanUser = (id) => {
+    API.put("/admin/unban/" + id).then(fetchUsers);
+  };
+
+  const approveProduct = (id) => {
+    API.put("/admin/approve/" + id).then(fetchPending);
+  };
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+      <Typography variant="h4" fontWeight="bold">
+        Admin Dashboard
+      </Typography>
+
+      {/* 🔥 STATS */}
+      <Grid container spacing={3} sx={{ mt: 2 }}>
+        {[
+          { label: "Users", value: stats.users },
+          { label: "Products", value: stats.products },
+          { label: "Orders", value: stats.orders },
+          { label: "Revenue", value: "₹ " + stats.revenue }
+        ].map((item, i) => (
+          <Grid item xs={12} md={3} key={i}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6">{item.label}</Typography>
+                <Typography variant="h4">{item.value}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* 🔥 USERS */}
+      <Typography variant="h5" sx={{ mt: 4 }}>
+        Users
+      </Typography>
+
+      {users.map(u => (
+        <Card key={u.id} sx={{ mt: 1, p: 2 }}>
+          {u.email} ({u.role})
+
+          <Chip
+            label={u.banned ? "BANNED" : "ACTIVE"}
+            color={u.banned ? "error" : "success"}
+            sx={{ ml: 2 }}
+          />
+
+          <Button
+            sx={{ ml: 2 }}
+            onClick={() => u.banned ? unbanUser(u.id) : banUser(u.id)}
+          >
+            {u.banned ? "Unban" : "Ban"}
+          </Button>
+        </Card>
+      ))}
+
+      {/* 🔥 PENDING PRODUCTS */}
+      <Typography variant="h5" sx={{ mt: 4 }}>
+        Pending Products
+      </Typography>
+
+      {pendingProducts.map(p => (
+        <Card key={p.id} sx={{ mt: 1, p: 2 }}>
+          {p.name} - ₹ {p.price}
+
+          <Button
+            sx={{ ml: 2 }}
+            variant="contained"
+            onClick={() => approveProduct(p.id)}
+          >
+            Approve
+          </Button>
+        </Card>
+      ))}
+
+    </Container>
+  );
+}
+
+export default AdminDashboardPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\AdminRoute.js =====
+
+import { Navigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
+
+function AdminRoute({ children }) {
+
+  const token = localStorage.getItem("token");
+
+  if (!token) return <Navigate to="/login" />;
+
+  try {
+    const decoded = jwtDecode(token);
+
+    if (decoded.role !== "ADMIN") {
+      return <Navigate to="/" />;
+    }
+
+    return children;
+
+  } catch {
+    return <Navigate to="/login" />;
+  }
+}
+
+export default AdminRoute;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\CartPage.js =====
+
+import React, { useEffect, useState, useRef } from "react";
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  Button,
+  Box,
+  Snackbar,
+  Alert,
+  CircularProgress
+} from "@mui/material";
+import API from "../services/api";
+
+function CartPage() {
+
+  const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  const hasShown = useRef(false); // 🔥 prevents double snackbar
+
+  // Load cart
+  useEffect(() => {
+    const storedCart = JSON.parse(localStorage.getItem("cart")) || [];
+    setCart(storedCart);
+
+    setSnackbar({ open: false, type: "", message: "" });
+  }, []);
+
+  // Remove item
+  const handleRemove = (id) => {
+    const updatedCart = cart.filter(item => item.id !== id);
+    setCart(updatedCart);
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+  };
+
+  // Total
+  const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
+
+  // 🔥 helper: show snackbar only once
+  const showSnackbarOnce = (type, message) => {
+    if (!hasShown.current) {
+      setSnackbar({
+        open: true,
+        type,
+        message
+      });
+      hasShown.current = true;
+    }
+  };
+
+  // Checkout
+  const handleCheckout = async () => {
+
+    if (loading || cart.length === 0) return;
+
+    setLoading(true);
+
+    try {
+      const results = await Promise.allSettled(
+        cart.map(product => API.post(`/orders/${product.id}`))
+      );
+
+      const successCount = results.filter(r => r.status === "fulfilled").length;
+
+      if (successCount === cart.length) {
+        localStorage.removeItem("cart");
+        setCart([]);
+
+        showSnackbarOnce("success", "All orders placed successfully");
+
+      } else if (successCount > 0) {
+        showSnackbarOnce("warning", "Some orders failed");
+
+      } else {
+        showSnackbarOnce("error", "Checkout failed");
+      }
+
+    } catch (err) {
+      console.log(err);
+      showSnackbarOnce("error", "Checkout failed");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <Container sx={{ marginTop: 4 }}>
+
+      <Typography variant="h4" gutterBottom>
+        Your Cart
+      </Typography>
+
+      {cart.length === 0 ? (
+        <Typography>Cart is empty</Typography>
+      ) : (
+        <>
+          <Grid container spacing={3}>
+
+            {cart.map(item => (
+
+              <Grid item xs={12} md={6} key={item.id}>
+
+                <Card
+                  sx={{
+                    borderRadius: 3,
+                    transition: "0.3s",
+                    "&:hover": {
+                      transform: "scale(1.02)",
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <CardContent>
+
+                    <Typography variant="h6">
+                      {item.name}
+                    </Typography>
+
+                    <Typography sx={{ marginTop: 1 }}>
+                      ₹ {item.price}
+                    </Typography>
+
+                    <Button
+                      color="error"
+                      sx={{ marginTop: 2 }}
+                      onClick={() => handleRemove(item.id)}
+                    >
+                      Remove
+                    </Button>
+
+                  </CardContent>
+                </Card>
+
+              </Grid>
+
+            ))}
+
+          </Grid>
+
+          {/* Total + Checkout */}
+          <Box sx={{ marginTop: 4 }}>
+
+            <Typography variant="h6">
+              Total: ₹ {totalPrice}
+            </Typography>
+
+            <Button
+              variant="contained"
+              sx={{ marginTop: 2 }}
+              onClick={handleCheckout}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : "Checkout"}
+            </Button>
+
+          </Box>
+        </>
+      )}
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => {
+          setSnackbar({ open: false, type: "", message: "" });
+          hasShown.current = false; // 🔥 reset for next checkout
+        }}
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default CartPage;
+
+//error occuring due to restrict mode in index.js, to avoid that remove the strict mode from index.js file and then check the cart page.
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\CommunityPage.js =====
+
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Chip,
+  MenuItem
+} from "@mui/material";
+import { jwtDecode } from "jwt-decode";
+
+function CommunityPage() {
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState("General");
+
+  const [posts, setPosts] = useState([]);
+
+  const [city, setCity] = useState("");
+  const [college, setCollege] = useState("");
+  const [trending, setTrending] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const navigate = useNavigate();
+
+  const filteredPosts = selectedCategory
+  ? posts.filter(
+      p => p.category === selectedCategory
+    )
+  : posts;
+
+  useEffect(() => {
+
+    const token = localStorage.getItem("token");
+
+    if (!token) return;
+
+    const decoded = jwtDecode(token);
+
+    setCity(decoded.city || "");
+    setCollege(decoded.college || "");
+
+    fetchPosts(decoded.city, decoded.college);
+
+    API.get("/community/trending")
+  .then(res => {
+    setTrending(res.data.slice(0, 5));
+  });
+
+  }, []);
+
+  const fetchPosts = (city, college) => {
+
+    API.get("/community/nearby", {
+      params: { city, college }
+    }).then(res => {
+      setPosts(res.data);
+    });
+  };
+
+  const createPost = () => {
+
+    API.post("/community", {
+      title,
+      content,
+      category
+    }).then(() => {
+
+      setTitle("");
+      setContent("");
+      setCategory("General");
+
+      fetchPosts(city, college);
+      API.get("/community/trending")
+     .then(res => {
+    setTrending(res.data.slice(0, 5));
+  });
+    });
+  };
+
+  const likePost = (id) => {
+
+  API.put(`/community/${id}/like`)
+    .then(() => {
+
+      fetchPosts(city, college);
+
+      API.get("/community/trending")
+        .then(res => {
+          setTrending(res.data.slice(0, 5));
+        });
+    });
+   };
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+      <Typography variant="h4">
+        Student Community
+      </Typography>
+
+      <TextField
+        fullWidth
+        label="Post Title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        sx={{ mt: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        multiline
+        rows={4}
+        label="Content"
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        sx={{ mt: 2 }}
+      />
+
+      <TextField
+     select
+     fullWidth
+     label="Post Category"
+     value={category}
+     onChange={(e) => setCategory(e.target.value)}
+     sx={{ mt: 2 }}
+    >
+      <MenuItem value="General">General</MenuItem>
+      <MenuItem value="Placement">Placement</MenuItem>
+      <MenuItem value="Notes">Notes</MenuItem>
+      <MenuItem value="Internship">Internship</MenuItem>
+      <MenuItem value="Coding">Coding</MenuItem>
+      <MenuItem value="College Life">College Life</MenuItem>
+    </TextField>
+
+      <TextField
+       select
+       fullWidth
+       label="Filter Category"
+       value={selectedCategory}
+        onChange={(e) => setSelectedCategory(e.target.value)}
+        sx={{ mt: 3 }}
+      >
+      <MenuItem value="">All</MenuItem>
+      <MenuItem value="General">General</MenuItem>
+      <MenuItem value="Placement">Placement</MenuItem>
+      <MenuItem value="Notes">Notes</MenuItem>
+      <MenuItem value="Internship">Internship</MenuItem>
+      <MenuItem value="Coding">Coding</MenuItem>
+      <MenuItem value="College Life">College Life</MenuItem>
+     </TextField>
+      <Button
+        variant="contained"
+        sx={{ mt: 2 }}
+        onClick={createPost}
+      >
+        Create Post
+      </Button>
+
+        <Typography variant="h5" sx={{ mt: 5 }}>
+          Trending Discussions
+        </Typography>
+
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+
+    {trending.length === 0 ? (
+
+     <Typography sx={{ mt: 2 }}>
+       No trending discussions yet
+     </Typography>
+
+     ) : trending.map(post => (
+
+    <Grid item xs={12} md={6} key={post.id}>
+
+      <Card
+        sx={{
+          borderRadius: 3,
+          border: "2px solid orange"
+        }}
+      >
+
+        <CardContent>
+
+          <Typography fontWeight="bold">
+            🔥 {post.title}
+          </Typography>
+
+          <Typography sx={{ mt: 1 }}>
+            {post.content}
+          </Typography>
+
+          <Chip
+            label={post.category}
+            size="small"
+            color="warning"
+            sx={{ mt: 2 }}
+          />
+
+          <Typography sx={{ mt: 2 }}>
+            👍 {post.likes}
+          </Typography>
+
+          <Button
+            size="small"
+            sx={{ mt: 1 }}
+            onClick={() => likePost(post.id)}
+          >
+            Like
+          </Button>
+
+          <Button
+            size="small"
+            sx={{ mt: 1 }}
+            onClick={() =>
+              navigate(`/community/post/${post.id}`)
+            }
+          >
+            View Discussion
+          </Button>
+
+           </CardContent>
+
+         </Card>
+
+        </Grid>
+
+        )
+        )}
+
+      </Grid>
+
+      <Typography variant="h5" sx={{ mt: 5 }}>
+        Nearby Discussions
+      </Typography>
+
+      <Grid container spacing={2} sx={{ mt: 2 }}>
+
+        {filteredPosts.length === 0 ? (
+
+         <Typography sx={{ mt: 2 }}>
+          No discussions found
+          </Typography>
+
+        ) : filteredPosts.map(post => (
+
+          <Grid item xs={12} md={6} key={post.id}>
+
+            <Card sx={{ borderRadius: 3 }}>
+
+              <CardContent>
+
+                <Typography fontWeight="bold">
+                  {post.title}
+                </Typography>
+
+                <Typography sx={{ mt: 1 }}>
+                  {post.content}
+                </Typography>
+
+                <Chip
+                  label={post.category}
+                  size="small"
+                  color="primary"
+                  sx={{ mt: 2 }}
+                />
+
+                <Typography sx={{ mt: 2 }}>
+                  👍 {post.likes}
+                </Typography>
+
+                <Button
+                  size="small"
+                  sx={{ mt: 1 }}
+                  onClick={() => likePost(post.id)}
+                >
+                  Like
+                </Button>
+
+                <Button
+                 size="small"
+                 sx={{ mt: 1 }}
+                 onClick={() => navigate(`/community/post/${post.id}`)}
+                 >
+                View Discussion
+                </Button>
+
+              </CardContent>
+
+            </Card>
+
+          </Grid>
+
+        ))}
+
+      </Grid>
+
+    </Container>
+  );
+}
+
+export default CommunityPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\DiscussionPage.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Divider,
+  Box,
+  Chip
+} from "@mui/material";
+
+import { useParams } from "react-router-dom";
+
+function DiscussionPage() {
+
+  const { id } = useParams();
+
+  const [post, setPost] = useState(null);
+
+  const [comments, setComments] = useState([]);
+
+  const [content, setContent] = useState("");
+
+  const [replyInputs, setReplyInputs] = useState({});
+
+  useEffect(() => {
+
+    fetchPost();
+    fetchComments();
+
+  }, []);
+
+  const fetchPost = () => {
+
+    API.get(`/community/post/${id}`)
+      .then(res => {
+        setPost(res.data);
+      });
+  };
+
+  const fetchComments = () => {
+
+    API.get(`/comments/${id}`)
+      .then(res => {
+        setComments(res.data);
+      });
+  };
+
+  // 🔥 Add main comment
+  const addComment = () => {
+
+    if (!content) return;
+
+    API.post("/comments", {
+      postId: id,
+      content
+    }).then(() => {
+
+      setContent("");
+
+      fetchComments();
+    });
+  };
+
+  // 🔥 Add reply
+  const addReply = (parentCommentId) => {
+
+    const reply = replyInputs[parentCommentId];
+
+    if (!reply) return;
+
+    API.post("/comments", {
+      postId: id,
+      parentCommentId,
+      content: reply
+    }).then(() => {
+
+      setReplyInputs({
+        ...replyInputs,
+        [parentCommentId]: ""
+      });
+
+      fetchComments();
+    });
+  };
+
+  // 🔥 Like comment
+  const likeComment = (commentId) => {
+
+    API.put(`/comments/${commentId}/like`)
+      .then(() => fetchComments());
+  };
+
+  // 🔥 Share discussion
+  const shareDiscussion = () => {
+
+    navigator.clipboard.writeText(window.location.href);
+
+    alert("Discussion link copied!");
+  };
+
+  // 🔥 Main comments only
+  const mainComments = comments.filter(
+    c => !c.parentCommentId
+  );
+
+  // 🔥 Replies
+  const getReplies = (parentId) => {
+    return comments.filter(
+      c => c.parentCommentId === parentId
+    );
+  };
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+      {/* 🔥 POST */}
+      {post && (
+
+        <Card sx={{ borderRadius: 3, mb: 4 }}>
+
+          <CardContent>
+
+            <Typography variant="h5" fontWeight="bold">
+              {post.title}
+            </Typography>
+
+            <Typography sx={{ mt: 2 }}>
+              {post.content}
+            </Typography>
+
+            <Chip
+              label={post.category}
+              sx={{ mt: 2 }}
+            />
+
+            <Typography sx={{ mt: 2 }}>
+              👍 {post.likes}
+            </Typography>
+
+            <Button
+              sx={{ mt: 2 }}
+              onClick={shareDiscussion}
+            >
+              Share Discussion
+            </Button>
+
+          </CardContent>
+
+        </Card>
+      )}
+
+      {/* 🔥 COMMENT INPUT */}
+      <Typography variant="h6">
+        Add Comment
+      </Typography>
+
+      <TextField
+        fullWidth
+        multiline
+        rows={3}
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        sx={{ mt: 2 }}
+      />
+
+      <Button
+        variant="contained"
+        sx={{ mt: 2 }}
+        onClick={addComment}
+      >
+        Comment
+      </Button>
+
+      {/* 🔥 COMMENTS */}
+      <Typography variant="h5" sx={{ mt: 5 }}>
+        Discussion
+      </Typography>
+
+      {mainComments.map(comment => (
+
+        <Card
+          key={comment.id}
+          sx={{ mt: 3, borderRadius: 3 }}
+        >
+
+          <CardContent>
+
+            <Typography fontWeight="bold">
+             {comment.userName}
+            </Typography>
+
+            <Typography variant="caption" color="text.secondary">
+             {comment.college}
+            </Typography>
+
+            <Typography>
+              {comment.content}
+            </Typography>
+
+            <Typography sx={{ mt: 1 }}>
+              👍 {comment.likes}
+            </Typography>
+
+            <Button
+              size="small"
+              onClick={() => likeComment(comment.id)}
+            >
+              Like
+            </Button>
+
+            {/* 🔥 REPLY INPUT */}
+            <Box sx={{ mt: 2 }}>
+
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Reply..."
+                value={replyInputs[comment.id] || ""}
+                onChange={(e) =>
+                  setReplyInputs({
+                    ...replyInputs,
+                    [comment.id]: e.target.value
+                  })
+                }
+              />
+
+              <Button
+                size="small"
+                sx={{ mt: 1 }}
+                onClick={() => addReply(comment.id)}
+              >
+                Reply
+              </Button>
+
+            </Box>
+
+            {/* 🔥 REPLIES */}
+            <Box sx={{ ml: 4, mt: 3 }}>
+
+              {getReplies(comment.id).map(reply => (
+
+                <Box
+                  key={reply.id}
+                  sx={{
+                    borderLeft: "2px solid #ccc",
+                    pl: 2,
+                    mt: 2
+                  }}
+                >
+
+                  <Typography>
+                    {reply.content}
+                  </Typography>
+
+                  <Typography sx={{ mt: 1 }}>
+                    👍 {reply.likes}
+                  </Typography>
+
+                  <Button
+                    size="small"
+                    onClick={() => likeComment(reply.id)}
+                  >
+                    Like
+                  </Button>
+
+                </Box>
+
+              ))}
+
+            </Box>
+
+          </CardContent>
+
+        </Card>
+
+      ))}
+
+    </Container>
+  );
+}
+
+export default DiscussionPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\GlobalSearchPage.js =====
+
+import React, { useState } from "react";
+
+import API from "../services/api";
+
+import {
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Chip
+} from "@mui/material";
+
+import { useNavigate } from "react-router-dom";
+
+function GlobalSearchPage() {
+
+  const [query, setQuery] = useState("");
+
+  const [results, setResults] = useState(null);
+
+  const navigate = useNavigate();
+
+  const search = () => {
+
+    if (!query) return;
+
+    API.get("/search/global", {
+      params: { query }
+    }).then(res => {
+      setResults(res.data);
+    });
+  };
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+      <Typography variant="h4">
+        AI Smart Search
+      </Typography>
+
+      <TextField
+        fullWidth
+        label="Search anything..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        sx={{ mt: 3 }}
+      />
+
+      <Button
+        variant="contained"
+        sx={{ mt: 2 }}
+        onClick={search}
+      >
+        Search
+      </Button>
+
+      {/* PRODUCTS */}
+      {results?.products?.length > 0 && (
+        <>
+          <Typography variant="h5" sx={{ mt: 5 }}>
+            Products
+          </Typography>
+
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+
+            {results.products.map(product => (
+
+              <Grid item xs={12} md={4} key={product.id}>
+
+                <Card sx={{ borderRadius: 3 }}>
+
+                  <CardContent>
+
+                    <Typography fontWeight="bold">
+                      {product.name}
+                    </Typography>
+
+                    <Typography>
+                      ₹ {product.price}
+                    </Typography>
+
+                    <Button
+                      sx={{ mt: 2 }}
+                      onClick={() =>
+                        navigate(`/product/${product.id}`)
+                      }
+                    >
+                      View Product
+                    </Button>
+
+                  </CardContent>
+
+                </Card>
+
+              </Grid>
+
+            ))}
+
+          </Grid>
+        </>
+      )}
+
+      {/* REQUESTS */}
+      {results?.requests?.length > 0 && (
+        <>
+          <Typography variant="h5" sx={{ mt: 5 }}>
+            Requests
+          </Typography>
+
+          {results.requests.map(req => (
+
+            <Card
+              key={req.id}
+              sx={{ mt: 2, borderRadius: 3 }}
+            >
+
+              <CardContent>
+
+                <Typography fontWeight="bold">
+                  {req.title}
+                </Typography>
+
+                <Typography>
+                  {req.description}
+                </Typography>
+
+              </CardContent>
+
+            </Card>
+
+          ))}
+        </>
+      )}
+
+      {/* POSTS */}
+      {results?.posts?.length > 0 && (
+        <>
+          <Typography variant="h5" sx={{ mt: 5 }}>
+            Discussions
+          </Typography>
+
+          {results.posts.map(post => (
+
+            <Card
+              key={post.id}
+              sx={{ mt: 2, borderRadius: 3 }}
+            >
+
+              <CardContent>
+
+                <Typography fontWeight="bold">
+                  {post.title}
+                </Typography>
+
+                <Typography>
+                  {post.content}
+                </Typography>
+
+                <Chip
+                  label={post.category}
+                  sx={{ mt: 2 }}
+                />
+
+                <Button
+                  sx={{ mt: 2 }}
+                  onClick={() =>
+                    navigate(`/community/post/${post.id}`)
+                  }
+                >
+                  Open Discussion
+                </Button>
+
+              </CardContent>
+
+            </Card>
+
+          ))}
+        </>
+      )}
+
+    </Container>
+  );
+}
+
+export default GlobalSearchPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\LoginPage.js =====
+
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  Box
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+
+function LoginPage() {
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const navigate = useNavigate();
+
+  // 🔥 Prevent logged-in users from seeing login page
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      navigate("/");
+    }
+  }, [navigate]);
+
+  // 🔥 Login handler (clean + no double trigger)
+  const handleLogin = (e) => {
+    e.preventDefault();
+
+    if (!email || !password) {
+      alert("Please enter email and password");
+      return;
+    }
+
+    API.post("/users/login", { email, password })
+      .then(res => {
+        const token = res.data;
+
+        localStorage.setItem("token", token);
+
+        // ✅ Redirect after login
+        navigate("/");
+        window.location.reload(); // Force reload to sync Navbar
+      })
+      .catch(err => {
+        const message =
+          err.response?.data?.message ||
+          err.response?.data ||
+          "Invalid credentials";
+
+        alert(message);
+      });
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Paper elevation={6} sx={{ padding: 4, marginTop: 8 }}>
+
+        <Typography variant="h4" gutterBottom>
+          Login
+        </Typography>
+
+        {/* 🔥 FORM (handles Enter automatically) */}
+        <Box
+          component="form"
+          onSubmit={handleLogin}
+          display="flex"
+          flexDirection="column"
+          gap={2}
+        >
+
+          <TextField
+            label="Email"
+            fullWidth
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+          >
+            Login
+          </Button>
+
+        </Box>
+
+      </Paper>
+    </Container>
+  );
+}
+
+export default LoginPage;
+
+
+
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\MyOrdersPage.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  Button,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  Chip,
+  Box
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
+
+function MyOrdersPage() {
+
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) return navigate("/login");
+
+    try {
+      const decoded = jwtDecode(token);
+      if (decoded.role !== "BUYER") return navigate("/");
+
+      fetchOrders();
+    } catch {
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  const fetchOrders = () => {
+    setLoading(true);
+
+    API.get("/orders/buyer")
+      .then(res => setOrders(res.data))
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Failed to load orders" })
+      )
+      .finally(() => setLoading(false));
+  };
+
+  const handleCancel = (id) => {
+    setCancellingId(id);
+
+    API.put(`/orders/cancel/${id}`)
+      .then(() => {
+        setSnackbar({ open: true, type: "success", message: "Order cancelled" });
+        fetchOrders();
+      })
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Cancel failed" })
+      )
+      .finally(() => setCancellingId(null));
+  };
+
+  return (
+    <Container sx={{ marginTop: 4 }}>
+
+      <Typography variant="h4" fontWeight="bold">My Orders</Typography>
+
+      {loading ? (
+        <CircularProgress />
+      ) : (
+        <Grid container spacing={3}>
+
+          {orders.length === 0 ? (
+            <Typography>No orders yet 🚀</Typography>
+          ) : (
+            orders.map(order => (
+
+              <Grid item xs={12} md={6} key={order.id}>
+
+                <Card sx={{ borderRadius: 3 }}>
+
+                  <CardContent>
+
+                    <Typography variant="h6" fontWeight="bold">
+                      {order.productName}
+                    </Typography>
+
+                    <Typography>₹ {order.price}</Typography>
+
+                    <Typography>
+                      {new Date(order.orderDate).toLocaleString()}
+                    </Typography>
+
+                    {/* 🔥 PROGRESS TRACKING */}
+                   <Box sx={{ display: "flex", gap: 1, mt: 1 }}> 
+                      <Chip
+                        label="Delivered"
+                          color={order.status === "DELIVERED" ? "success" : "default"}
+                      />
+
+                    {/* 🔥 CANCELLED STATE */}
+                       {order.status === "CANCELLED" && (
+                      <Chip label="Cancelled" color="error" />
+                       )}
+
+                  </Box>
+
+                    {/* 🔥 CANCEL */}
+                    {order.status === "PLACED" && (
+                      <Button
+                        color="error"
+                        fullWidth
+                        sx={{ mt: 2 }}
+                        disabled={cancellingId === order.id}
+                        onClick={() => handleCancel(order.id)}
+                      >
+                        Cancel Order
+                      </Button>
+                    )}
+
+                  </CardContent>
+                </Card>
+
+              </Grid>
+            ))
+          )}
+
+        </Grid>
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ open: false })}
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default MyOrdersPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\OrderHistoryPage.js =====
+
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Pagination
+} from "@mui/material";
+import { jwtDecode } from "jwt-decode";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+
+function ProductsPage() {
+
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const token = localStorage.getItem("token");
+
+  let role = null;
+
+  if (token) {
+    const decoded = jwtDecode(token);
+    role = decoded.role;
+  }
+
+  const fetchProducts = (pageNumber) => {
+    API.get(`/products?page=${pageNumber - 1}&size=6`)
+      .then(res => {
+        setProducts(res.data.content);
+        setTotalPages(res.data.totalPages);
+      })
+      .catch(err => console.error(err));
+  };
+
+  useEffect(() => {
+    fetchProducts(page);
+  }, [page]);
+
+  const handlePlaceOrder = (productId) => {
+
+    API.post(`/orders?productId=${productId}`)
+      .then(() => {
+        setSnackbarOpen(true);
+      })
+      .catch(err => {
+        console.log(err);
+      });
+
+  };
+
+  return (
+    <Container sx={{ marginTop: 4 }}>
+
+      <Typography variant="h4" gutterBottom>
+        Marketplace Products
+      </Typography>
+
+      <Grid container spacing={3}>
+
+        {products.map(product => (
+
+          <Grid item xs={12} sm={6} md={4} key={product.id}>
+
+            <Card>
+
+              <CardContent>
+
+                <Typography variant="h6">
+                  {product.name}
+                </Typography>
+
+                <Typography color="text.secondary">
+                  {product.category}
+                </Typography>
+
+                <Typography variant="body1" sx={{ marginTop: 1 }}>
+                  ₹ {product.price}
+                </Typography>
+
+                {role === "BUYER" && (
+                  <Button
+                    variant="contained"
+                    sx={{ marginTop: 2 }}
+                    onClick={() => handlePlaceOrder(product.id)}
+                  >
+                    Place Order
+                  </Button>
+                )}
+
+              </CardContent>
+
+            </Card>
+
+          </Grid>
+
+        ))}
+
+      </Grid>
+
+      <Pagination
+        sx={{ marginTop: 4 }}
+        count={totalPages}
+        page={page}
+        onChange={(event, value) => setPage(value)}
+      />
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+      >
+        <Alert severity="success" variant="filled">
+          Order placed successfully
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default ProductsPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\ProductDetailsPage.js =====
+
+import React, { useEffect, useState, useCallback } from "react";
+import API from "../services/api";
+import { useParams } from "react-router-dom";
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Snackbar,
+  Alert,
+  Box,
+  Grid,
+  TextField,
+  Rating,
+  IconButton,
+  Chip
+} from "@mui/material";
+
+import ThumbUpIcon from "@mui/icons-material/ThumbUp";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+
+import { jwtDecode } from "jwt-decode";
+
+function ProductDetailsPage() {
+
+  const { id } = useParams();
+
+  const [product, setProduct] = useState(null);
+  const [role, setRole] = useState(null);
+  const [userId, setUserId] = useState(null);
+
+  const [reviews, setReviews] = useState([]);
+
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+
+  const [editingId, setEditingId] = useState(null);
+  const [editingRating, setEditingRating] = useState(0);
+  const [editingComment, setEditingComment] = useState("");
+
+  const [sortType, setSortType] = useState("latest");
+  
+  const [replyText, setReplyText] = useState("");
+  const [replyingId, setReplyingId] = useState(null);
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // 🔐 Decode token
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setRole(decoded.role);
+        setUserId(decoded.userId); // ✅ FIXED (not id)
+      } catch {
+        localStorage.removeItem("token");
+      }
+    }
+  }, []);
+
+  // 🔥 Fetch product
+  useEffect(() => {
+    API.get(`/products/details/${id}`)
+      .then(res => setProduct(res.data));
+  }, [id]);
+
+  // 🔥 Fetch reviews
+  const fetchReviews = useCallback( () => {
+    API.get(`/reviews/${id}?sort=${sortType}`)
+      .then(res => setReviews(res.data))
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Failed to load reviews" })
+      );
+  }, [id, sortType]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
+
+  // 🔥 Buy
+  const handleBuy = () => {
+    setLoadingOrder(true);
+
+    API.post(`/orders/${id}`)
+      .then(() =>
+        setSnackbar({ open: true, type: "success", message: "Order placed" })
+      )
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Order failed" })
+      )
+      .finally(() => setLoadingOrder(false));
+  };
+
+  // 🔥 Add to cart
+  const handleAddToCart = () => {
+    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+    if (cart.find(p => p.id === product.id)) {
+      setSnackbar({ open: true, type: "warning", message: "Already in cart" });
+      return;
+    }
+
+    localStorage.setItem("cart", JSON.stringify([...cart, product]));
+    setSnackbar({ open: true, type: "success", message: "Added to cart" });
+  };
+    
+    <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+
+     <Button
+       variant={sortType === "latest" ? "contained" : "outlined"}
+      onClick={() => setSortType("latest")}
+     >
+       Latest
+     </Button>
+ 
+     <Button
+      variant={sortType === "top" ? "contained" : "outlined"}
+      onClick={() => setSortType("top")}
+     >
+       Top Rated
+     </Button>
+
+     <Button
+        variant={sortType === "liked" ? "contained" : "outlined"}
+        onClick={() => setSortType("liked")}
+      >
+        Most Liked
+     </Button>
+
+    </Box>
+
+  // 🔥 Add review
+  const handleReview = () => {
+
+    if (rating === 0) {
+      setSnackbar({ open: true, type: "error", message: "Select rating" });
+      return;
+    }
+
+    API.post(`/reviews/${id}?rating=${rating}&comment=${comment}`)
+      .then(() => {
+        setSnackbar({ open: true, type: "success", message: "Review added" });
+        setRating(0);
+        setComment("");
+        fetchReviews();
+      })
+      .catch(err =>
+        setSnackbar({
+          open: true,
+          type: "error",
+          message: err.response?.data?.message || "Review failed"
+        })
+      );
+  };
+   
+  //reply
+  const handleReply = (reviewId) => {
+    API.put(`/reviews/reply/${reviewId}?reply=${replyText}`)
+    .then(() => {
+      setReplyingId(null);
+      setReplyText("");
+      fetchReviews();
+    })
+    .catch(() =>
+      setSnackbar({ open: true, type: "error", message: "Reply failed" })
+    );
+  };
+
+  // 🔥 Like
+  const handleLike = (reviewId) => {
+    API.put(`/reviews/like/${reviewId}`)
+      .then(fetchReviews)
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Like failed" })
+      );
+  };
+
+  // 🔥 Delete
+  const handleDelete = (reviewId) => {
+    API.delete(`/reviews/${reviewId}`)
+      .then(() => {
+        setSnackbar({ open: true, type: "success", message: "Deleted" });
+        fetchReviews();
+      })
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Delete failed" })
+      );
+  };
+
+  // 🔥 Start edit
+  const handleEditStart = (r) => {
+    setEditingId(r.id);
+    setEditingRating(r.rating);
+    setEditingComment(r.comment);
+  };
+ 
+// 🔥 Delete reply
+  const handleDeleteReply = (reviewId) => {
+  API.put(`/reviews/reply/${reviewId}?reply=`)
+    .then(() => {
+      fetchReviews();
+      setSnackbar({
+        open: true,
+        type: "success",
+        message: "Reply removed"
+      });
+    })
+    .catch(() =>
+      setSnackbar({
+        open: true,
+        type: "error",
+        message: "Delete reply failed"
+      })
+    );
+};
+
+  // 🔥 Save edit
+  const handleEditSave = () => {
+    API.put(`/reviews/${editingId}?rating=${editingRating}&comment=${editingComment}`)
+      .then(() => {
+        setEditingId(null);
+        fetchReviews();
+        setSnackbar({ open: true, type: "success", message: "Updated" });
+      })
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Update failed" })
+      );
+  };
+
+  if (!product) return <Typography>Loading...</Typography>;
+
+  return (
+    <Container sx={{ mt: 5 }}>
+
+      {/* PRODUCT */}
+      <Card sx={{ p: 3, borderRadius: 3 }}>
+        <Grid container spacing={4}>
+
+          <Grid item xs={12} md={5}>
+            <img
+              src={product.imageUrl || "https://via.placeholder.com/400x300"}
+              alt={product.name}
+              style={{ width: "100%", height: 350, objectFit: "cover" }}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={7}>
+
+            <Typography variant="h4" fontWeight="bold">
+              {product.name}
+            </Typography>
+
+            <Typography color="gray">
+              Category: {product.category}
+            </Typography>
+
+            <Typography variant="h5" sx={{ mt: 2 }}>
+              ₹ {product.price}
+            </Typography>
+
+            {/* ⭐ RATING */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+              <Rating value={product.avgRating || 0} precision={0.5} readOnly />
+              <Typography variant="body2">
+                ({product.totalReviews || 0})
+              </Typography>
+            </Box>
+
+            <Typography sx={{ mt: 3 }}>
+              {product.description}
+            </Typography>
+
+            {role === "BUYER" && (
+              <Box sx={{ display: "flex", gap: 2, mt: 4 }}>
+                <Button fullWidth variant="outlined" onClick={handleAddToCart}>
+                  Add to Cart
+                </Button>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={handleBuy}
+                  disabled={loadingOrder}
+                >
+                  {loadingOrder ? "Placing..." : "Buy Now"}
+                </Button>
+              </Box>
+            )}
+
+          </Grid>
+        </Grid>
+      </Card>
+
+      {/* REVIEWS */}
+      <Box sx={{ mt: 4 }}>
+
+        <Typography variant="h5" fontWeight="bold">
+          Reviews
+        </Typography>
+
+        {/* ADD REVIEW */}
+        {role === "BUYER" && (
+          <Box sx={{ mt: 2 }}>
+            <Rating value={rating} onChange={(e, val) => setRating(val)} />
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Write review"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              sx={{ mt: 2 }}
+            />
+
+            <Button sx={{ mt: 2 }} variant="contained" onClick={handleReview}>
+              Submit Review
+            </Button>
+          </Box>
+        )}
+
+        {/* REVIEW LIST */}
+        {reviews.map(r => {
+
+          const isOwner = r.UserId === userId;
+          const isSeller = role === "SELLER";
+
+          return (
+            <Card key={r.id} sx={{ mt: 2 }}>
+              <CardContent>
+
+                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Rating value={r.rating} readOnly />
+
+                  {r.verified && (
+                    <Chip label="Verified Buyer" color="success" size="small" />
+                  )}
+                </Box>
+
+                {editingId === r.id ? (
+  <>
+    <Rating
+      value={editingRating}
+      onChange={(e, val) => setEditingRating(val)}
+    />
+
+    <TextField
+      fullWidth
+      multiline
+      rows={2}
+      value={editingComment}
+      onChange={(e) => setEditingComment(e.target.value)}
+      sx={{ mt: 1 }}
+    />
+
+    <Button sx={{ mt: 1 }} onClick={handleEditSave}>
+      Save
+    </Button>
+  </>
+) : (
+  <>
+    <Typography sx={{ mt: 1 }}>
+      {r.comment}
+    </Typography>
+
+    <Typography variant="caption">
+      {new Date(r.createdAt).toLocaleString()}
+    </Typography>
+
+        {/* ✅ SHOW REPLY IF EXISTS */}
+{r.sellerReply && (
+  <Box sx={{ mt: 2, p: 1, background: "#f5f5f5", borderRadius: 1 }}>
+    <Typography variant="subtitle2">Seller Reply:</Typography>
+    <Typography>{r.sellerReply}</Typography>
+  </Box>
+)}
+
+{/* 🔥 SELLER ACTIONS (ALWAYS VISIBLE FOR SELLER) */}
+{isSeller && (
+  <Box sx={{ mt: 1 }}>
+
+    {replyingId === r.id ? (
+      <>
+        <TextField
+          fullWidth
+          size="small"
+          value={replyText}
+          onChange={(e) => setReplyText(e.target.value)}
+        />
+
+        <Button sx={{ mt: 1 }} onClick={() => handleReply(r.id)}>
+          {r.sellerReply ? "Update Reply" : "Add Reply"}
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          size="small"
+          onClick={() => {
+            setReplyingId(r.id);
+            setReplyText(r.sellerReply || "");
+          }}
+        >
+          {r.sellerReply ? "Edit Reply" : "Reply"}
+        </Button>
+
+        {r.sellerReply && (
+          <Button
+            size="small"
+            color="error"
+            onClick={() => handleDeleteReply(r.id)}
+          >
+            Delete Reply
+          </Button>
+        )}
+      </>
+    )}
+
+  </Box>
+)}
+
+                {/* ACTIONS */}
+                <Box sx={{ display: "flex", alignItems: "center", mt: 1 }}>
+
+                  <IconButton onClick={() => handleLike(r.id)}>
+                    <ThumbUpIcon />
+                  </IconButton>
+
+                  <Typography>{r.likes}</Typography>
+
+                  {isOwner && (
+                    <>
+                      <IconButton onClick={() => handleEditStart(r)}>
+                        <EditIcon />
+                      </IconButton>
+
+                      <IconButton onClick={() => handleDelete(r.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </>
+                  )}
+
+                </Box>
+                 </>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+
+      </Box>
+
+      {/* SNACKBAR */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ open: false, type: "", message: "" })}
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default ProductDetailsPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\ProductsPage.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Pagination,
+  CircularProgress,
+  CardMedia,
+  TextField,
+  Box,
+  MenuItem,
+  Rating
+} from "@mui/material";
+import { useNavigate, useLocation } from "react-router-dom";
+
+import NearbyProducts from "../components/NearbyProducts";
+
+function ProductsPage() {
+
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  const [category, setCategory] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [minRating, setMinRating] = useState("");
+  const [sortBy, setSortBy] = useState("");
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const query = new URLSearchParams(location.search);
+  const searchFromUrl = query.get("search") || "";
+  const city = query.get("city") || "";
+  const college = query.get("college") || "";
+
+  const fetchProducts = (pageNumber) => {
+    setLoading(true);
+
+    API.get("/products", {
+    params: {
+  page: pageNumber - 1,
+  size: 6,
+  ...(searchFromUrl && { search: searchFromUrl }),
+  ...(category && { category }),
+  ...(minPrice && { minPrice }),
+  ...(maxPrice && { maxPrice }),
+  ...(minRating && { minRating }),
+  ...(sortBy && { sortBy }),
+  ...(city && { city }),
+  ...(college && { college })
+  }
+    })
+      .then(res => {
+        setProducts(res.data.content);
+        setTotalPages(res.data.totalPages);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchProducts(page);
+  }, [page, location.search, category, minPrice, maxPrice, minRating, sortBy]);
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+    <Box
+  sx={{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 2,
+    justifyContent: "space-between",
+    mb: 3
+  }}
+>
+
+  <Typography variant="h4">Marketplace Products</Typography>
+  
+ 
+
+  <TextField
+    select
+    label="Category"
+    value={category}
+    onChange={(e) => {
+      setCategory(e.target.value);
+      setPage(1);
+    }}
+    sx={{ minWidth: 150 }}
+  >
+    <MenuItem value="">All</MenuItem>
+    <MenuItem value="Electronics">Electronics</MenuItem>
+    <MenuItem value="Clothing">Clothing</MenuItem>
+    <MenuItem value="Books">Books</MenuItem>
+    <MenuItem value="Home">Home</MenuItem>
+    <MenuItem value="Smartphone">Smartphone</MenuItem>
+  </TextField>
+
+  {/* 🔥 NEW FILTERS */}
+
+  <TextField
+    label="Min Price"
+    value={minPrice}
+    onChange={(e) => setMinPrice(e.target.value)}
+    sx={{ width: 120 }}
+  />
+
+  <TextField
+    label="Max Price"
+    value={maxPrice}
+    onChange={(e) => setMaxPrice(e.target.value)}
+    sx={{ width: 120 }}
+  />
+
+    <TextField
+      label="Min Rating"
+      value={minRating}
+      onChange={(e) => setMinRating(e.target.value)}
+      sx={{ width: 120 }}
+     />
+
+     <TextField
+       select
+       label="Sort"
+       value={sortBy}
+       onChange={(e) => setSortBy(e.target.value)}
+       sx={{ minWidth: 150 }}
+      >
+      <MenuItem value="">None</MenuItem>
+      <MenuItem value="priceLow">Price Low → High</MenuItem>
+      <MenuItem value="priceHigh">Price High → Low</MenuItem>
+      <MenuItem value="rating">Top Rated</MenuItem>
+      </TextField>
+
+      </Box>
+
+        <NearbyProducts />
+
+      {loading ? (
+        <CircularProgress />
+      ) : (
+
+         
+
+        <Grid container spacing={3}>
+
+          {products.map(product => (
+
+            <Grid item xs={12} sm={6} md={4} key={product.id}>
+
+              <Card
+                onClick={() => navigate(`/product/${product.id}`)}
+                sx={{ cursor: "pointer", borderRadius: 3 }}
+              >
+
+                <CardMedia
+                  component="img"
+                  height="200"
+                  image={product.imageUrl || "https://via.placeholder.com/400x300"}
+                />
+
+                <CardContent>
+
+                  <Typography fontWeight="bold">
+                    {product.name}
+                  </Typography>
+
+                  <Typography color="text.secondary">
+                    {product.category}
+                  </Typography>
+
+                  <Typography>₹ {product.price}</Typography>
+
+                  {/* 🔥 FUTURE: AVG RATING */}
+                  <Box sx = {{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+
+                  <Rating value={product.avgRating || 0} readOnly />
+                  <Typography variant="body2" color="text.secondary">
+                    ({product.totalReviews || 0})
+                  </Typography>
+                  </Box>
+
+                  <Button
+                    fullWidth
+                    sx={{ mt: 2 }}
+                    variant="outlined"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/product/${product.id}`);
+                    }}
+                  >
+                    View Product
+                  </Button>
+
+                </CardContent>
+
+              </Card>
+
+            </Grid>
+
+          ))}
+
+        </Grid>
+      )}
+
+      <Pagination
+        sx={{ mt: 4, display: "flex", justifyContent: "center" }}
+        count={totalPages}
+        page={page}
+        onChange={(e, v) => setPage(v)}
+      />
+
+    </Container>
+  );
+}
+
+export default ProductsPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\RegisterPage.js =====
+
+import React, { useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  MenuItem,
+  Snackbar,
+  Alert
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+
+function RegisterPage() {
+
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "BUYER",
+    city: "",
+    college: ""
+  });
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleRegister = () => {
+
+    if (!form.name || !form.email || !form.password) {
+      setSnackbar({
+        open: true,
+        type: "error",
+        message: "All fields required"
+      });
+      return;
+    }
+
+    API.post("/users/register", form)
+      .then(() => {
+        setSnackbar({
+          open: true,
+          type: "success",
+          message: "Registered successfully"
+        });
+
+        setTimeout(() => navigate("/login"), 1000);
+      })
+      .catch(err => {
+        setSnackbar({
+          open: true,
+          type: "error",
+          message: err.response?.data || "Registration failed"
+        });
+      });
+  };
+
+  return (
+    <Container sx={{ mt: 5, maxWidth: 400 }}>
+
+      <Typography variant="h4" gutterBottom>
+        Register
+      </Typography>
+
+      <TextField
+        fullWidth
+        label="Name"
+        name="name"
+        value={form.name}
+        onChange={handleChange}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        label="Email"
+        name="email"
+        value={form.email}
+        onChange={handleChange}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        type="password"
+        label="Password"
+        name="password"
+        value={form.password}
+        onChange={handleChange}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        select
+        fullWidth
+        label="Role"
+        name="role"
+        value={form.role}
+        onChange={handleChange}
+        sx={{ mb: 3 }}
+      >
+        <MenuItem value="BUYER">Buyer</MenuItem>
+        <MenuItem value="SELLER">Seller</MenuItem>
+      </TextField>
+      
+      <TextField
+        label="City"
+        name="city"
+        value={form.city}
+        onChange={handleChange}
+        sx={{ mb: 3 }}
+      />
+
+      <TextField
+        label="College"
+        name="college"
+        value={form.college}
+        onChange={handleChange}
+        sx={{ mb: 2 }}
+      />
+
+      <Button
+        fullWidth
+        variant="contained"
+        onClick={handleRegister}
+      >
+        Register
+      </Button>
+
+      <Button
+        fullWidth
+        sx={{ mt: 2 }}
+        onClick={() => navigate("/login")}
+      >
+        Already have an account? Login
+      </Button>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ open: false })}
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default RegisterPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\RequestsPage.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  Chip
+} from "@mui/material";
+import { jwtDecode } from "jwt-decode";
+import { useNavigate } from "react-router-dom";
+
+function RequestsPage() {
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [requests, setRequests] = useState([]);
+
+  const [city, setCity] = useState("");
+  const [college, setCollege] = useState("");
+
+  const [matches, setMatches] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+
+  const navigate = useNavigate();
+
+  // 🔥 Get location from token
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) return;
+
+    const decoded = jwtDecode(token);
+
+    setCity(decoded.city || "");
+    setCollege(decoded.college || "");
+    
+    if (decoded.city || decoded.college) {
+    fetchRequests(decoded.city, decoded.college);
+    }
+  }, []);
+
+  // 🔥 Fetch nearby requests
+  const fetchRequests = (city, college) => {
+    if (!city && !college) return;
+    API.get("/requests/nearby", {
+      params: { city, college }
+    }).then(res => {
+      setRequests(res.data);
+    });
+  };
+
+  const fetchMatches = (requestId) => {
+
+  API.get(`/requests/${requestId}/matches`)
+    .then(res => {
+      setMatches(res.data);
+      setSelectedRequest(requestId);
+    })
+    .catch(() => {
+      console.log("Failed to fetch matches");
+    });
+  };
+
+  // 🔥 Create request
+  const handleCreate = () => {
+
+    if (!title) return;
+
+    API.post("/requests", {
+      title,
+      description
+    }).then(() => {
+
+      setTitle("");
+      setDescription("");
+
+      fetchRequests(city, college);
+    });
+  };
+
+  return (
+    <Container sx={{ mt: 4 }}>
+
+      {/* 🔥 CREATE REQUEST */}
+      <Typography variant="h4" gutterBottom>
+        Request an Item
+      </Typography>
+
+      <TextField
+        fullWidth
+        label="Title (e.g. Need Java Book)"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        label="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        sx={{ mb: 2 }}
+      />
+
+      <Button variant="contained" onClick={handleCreate}>
+        Post Request
+      </Button>
+
+      {/* 🔥 REQUEST LIST */}
+      <Typography variant="h5" sx={{ mt: 4 }}>
+        Nearby Requests
+      </Typography>
+
+      <Grid container spacing={2} sx={{ mt: 2 }}>
+
+        {requests.map(req => (
+
+          <Grid item xs={12} md={6} key={req.id}>
+            <Card sx={{ borderRadius: 3 }}>
+
+              <CardContent>
+
+                <Typography fontWeight="bold">
+                  {req.title}
+                </Typography>
+
+                <Typography color="text.secondary">
+                  {req.description}
+                </Typography>
+
+                <Chip
+                  label="Nearby"
+                  color="primary"
+                  size="small"
+                  sx={{ mt: 1 }}
+                />
+
+                <Button
+                  size="small"
+                  sx={{ mt: 2 }}
+                  onClick={() => fetchMatches(req.id)}
+                  >
+                  View Matching Products
+                </Button>
+
+              </CardContent>
+
+            </Card>
+          </Grid>
+
+         
+        ))}
+
+      </Grid>
+
+
+       {selectedRequest && (
+  <>
+    <Typography variant="h5" sx={{ mt: 5 }}>
+      Matching Products
+    </Typography>
+
+    <Grid container spacing={2} sx={{ mt: 2 }}>
+
+      {matches.map(product => (
+
+        <Grid item xs={12} md={4} key={product.id}>
+
+          <Card sx={{ borderRadius: 3 }}>
+
+            <CardContent>
+
+              <Typography fontWeight="bold">
+                {product.name}
+              </Typography>
+
+              <Typography color="text.secondary">
+                {product.category}
+              </Typography>
+
+              <Typography>
+                ₹ {product.price}
+              </Typography>
+
+              <Chip
+                label="Matched"
+                color="success"
+                size="small"
+                sx={{ mt: 1 }}
+              />
+
+            </CardContent>
+
+            <Button
+          fullWidth
+          sx={{ mt: 2 }}
+          variant="outlined"
+          onClick={() => navigate(`/product/${product.id}`)}
+          >
+            View Product
+          </Button>
+
+          </Card>
+
+        </Grid>
+
+      ))}
+
+    </Grid>
+  </>
+   )}
+
+
+    </Container>
+  );
+}
+
+export default RequestsPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\SellerDashboard.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Button,
+  CardMedia,
+  Dialog,
+  DialogTitle,
+  DialogActions,
+  Snackbar,
+  Alert,
+  Chip,
+  Box
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+
+function SellerDashboardPage() {
+
+  const navigate = useNavigate();
+
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // 🔥 Delete dialog state
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
+  //notification state
+  const [notifications, setNotifications] = useState([]);
+
+
+  // 🔥 Snackbar state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  // 🔥 Fetch products
+  const fetchProducts = () => {
+    setLoading(true);
+
+    API.get("/products/seller")
+      .then(res => {
+        setProducts(res.data);
+      })
+      .catch(() => {
+        setSnackbar({
+          open: true,
+          type: "error",
+          message: "Failed to load products"
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+  
+    //fetch notification
+  const fetchNotifications = () => {
+
+    API.get("/products/seller/notified")
+      .then(res => setNotifications(res.data))
+      .catch(() => {
+        setSnackbar({
+          open: true,
+          type: "error",
+          message: "Failed to load notifications"
+        });
+      });
+    };
+    
+    useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  // 🔥 Open delete dialog
+  const handleOpenDialog = (id) => {
+    setSelectedId(id);
+    setOpenDialog(true);
+  };
+
+  // 🔥 Confirm delete
+  const handleConfirmDelete = () => {
+    API.delete("/products/" + selectedId)
+      .then(() => {
+        setSnackbar({
+          open: true,
+          type: "success",
+          message: "Product deleted"
+        });
+        fetchProducts();
+      })
+      .catch(() => {
+        setSnackbar({
+          open: true,
+          type: "error",
+          message: "Delete failed"
+        });
+      });
+
+    setOpenDialog(false);
+  };
+
+  return (
+    <Container sx={{ marginTop: 4 }}>
+
+      <Typography variant="h4" gutterBottom>
+        My Products
+      </Typography>
+      
+      {notifications.length > 0 && (
+     <Box sx={{ mb: 2 }}>
+        {notifications.map(n => (
+      <Alert
+        key={n.id}
+        severity="success"
+        onClose={() => {
+          API.put("/products/seller/notify-read/" + n.id);
+          fetchNotifications();
+        }}
+        sx={{ mb: 1 }}
+      >
+        Your product "{n.name}" is approved 🎉
+      </Alert>
+       ))}
+      </Box>
+      )}
+
+       
+      {loading ? (
+        <Typography>Loading...</Typography>
+      ) : (
+        <Grid container spacing={3}>
+
+          {products.length === 0 ? (
+            <Typography>No products added yet</Typography>
+          ) : (
+            products.map(product => (
+
+              <Grid item xs={12} sm={6} md={4} key={product.id}>
+
+                <Card
+                  sx={{
+                    borderRadius: 3,
+                    transition: "0.3s",
+                    "&:hover": {
+                      boxShadow: 6,
+                      transform: "translateY(-5px)"
+                    }
+                  }}
+                >
+
+                  <CardMedia
+                    component="img"
+                    height="200"
+                    image={
+                      product.imageUrl ||
+                      "https://via.placeholder.com/400x300"
+                    }
+                  />
+
+                  <CardContent>
+
+                    <Chip 
+                        label={product.approved ? "Approved" : "Pending"}
+                        color={product.approved ? "success" : "warning"}
+                        size="small"
+                        sx={{ marginBottom: 1 }}
+                    />
+
+                    <Typography variant="h6" fontWeight="bold">
+                      {product.name}
+                    </Typography>
+
+                    <Typography color="text.secondary">
+                      ₹ {product.price}
+                    </Typography>
+
+                    {/* 🔥 ACTION BUTTONS */}
+                    <Grid container spacing={1} sx={{ marginTop: 1 }}>
+
+                      <Grid item xs={6}>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate("/update-product/" + product.id);
+                          }}
+                        >
+                          Update
+                        </Button>
+                      </Grid>
+
+                      <Grid item xs={6}>
+                        <Button
+                          color="error"
+                          fullWidth
+                          onClick={() => handleOpenDialog(product.id)}
+                        >
+                          Delete
+                        </Button>
+                      </Grid>
+
+                    </Grid>
+
+                  </CardContent>
+
+                </Card>
+
+              </Grid>
+
+            ))
+          )}
+
+        </Grid>
+      )}
+
+      {/* 🔥 DELETE CONFIRMATION DIALOG */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Are you sure you want to delete this product?</DialogTitle>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button color="error" onClick={handleConfirmDelete}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 🔥 SNACKBAR */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() =>
+          setSnackbar({ open: false, type: "", message: "" })
+        }
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default SellerDashboardPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\SellersOrdersPage.js =====
+
+import React, { useEffect, useState } from "react";
+import API from "../services/api";
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  Button,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  Chip
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
+
+function SellerOrdersPage() {
+
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState(null);
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    type: "",
+    message: ""
+  });
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) return navigate("/login");
+
+    try {
+      const decoded = jwtDecode(token);
+      if (decoded.role !== "SELLER") return navigate("/");
+
+      fetchOrders();
+    } catch {
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  const fetchOrders = () => {
+    setLoading(true);
+
+    API.get("/orders/seller")
+      .then(res => setOrders(res.data))
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Failed to load orders" })
+      )
+      .finally(() => setLoading(false));
+  };
+
+  const handleConfirm = (id) => {
+    setProcessingId(id);
+
+    API.put('/orders/confirm/' + id)
+      .then(() => {
+        setSnackbar({ open: true, type: "success", message: "Order confirmed" });
+        fetchOrders();
+      })
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Confirm failed" })
+      )
+      .finally(() => setProcessingId(null));
+  };
+
+  const handleDeliver = (id) => {
+    setProcessingId(id);
+
+    API.put('/orders/deliver/' + id)
+      .then(() => {
+        setSnackbar({ open: true, type: "success", message: "Order delivered" });
+        fetchOrders();
+      })
+      .catch(() =>
+        setSnackbar({ open: true, type: "error", message: "Delivery failed" })
+      )
+      .finally(() => setProcessingId(null));
+  };
+
+  return (
+    <Container sx={{ marginTop: 4 }}>
+
+      <Typography variant="h4" fontWeight="bold">Seller Orders</Typography>
+
+      {loading ? (
+        <CircularProgress />
+      ) : (
+        <Grid container spacing={3}>
+
+          {orders.length === 0 ? (
+            <Typography>No orders yet 📦</Typography>
+          ) : (
+            orders.map(order => (
+
+              <Grid item xs={12} md={6} key={order.id}>
+
+                <Card sx={{ borderRadius: 3, p: 1 }}>
+
+                  <CardContent>
+
+                    <Typography variant="h6" fontWeight="bold">
+                      {order.productName}
+                    </Typography>
+
+                    <Typography>₹ {order.price}</Typography>
+
+                    <Typography>
+                      {new Date(order.orderDate).toLocaleString()}
+                    </Typography>
+
+                    {/* 🔥 STATUS */}
+                    <Chip
+                      label={order.status}
+                      color={
+                        order.status === "DELIVERED"
+                          ? "success"
+                          : order.status === "CONFIRMED"
+                          ? "primary"
+                          : order.status === "PLACED"
+                          ? "warning"
+                          : "error"
+                      }
+                      sx={{ mt: 1 }}
+                    />
+
+                    {/* 🔥 ACTIONS */}
+                    {order.status === "PLACED" && (
+                      <Button
+                        fullWidth
+                        sx={{ mt: 2 }}
+                        variant="contained"
+                        disabled={processingId === order.id}
+                        onClick={() => handleConfirm(order.id)}
+                      >
+                        Confirm
+                      </Button>
+                    )}
+
+                    {order.status === "CONFIRMED" && (
+                      <Button
+                        fullWidth
+                        sx={{ mt: 1 }}
+                        variant="outlined"
+                        disabled={processingId === order.id}
+                        onClick={() => handleDeliver(order.id)}
+                      >
+                        Deliver
+                      </Button>
+                    )}
+
+                  </CardContent>
+                </Card>
+
+              </Grid>
+            ))
+          )}
+
+        </Grid>
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ open: false })}
+      >
+        <Alert severity={snackbar.type} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+    </Container>
+  );
+}
+
+export default SellerOrdersPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\pages\UpdateProductPage.js =====
+
+import React, { useEffect, useState } from "react";
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  Box
+} from "@mui/material";
+import { useNavigate, useParams } from "react-router-dom";
+import API from "../services/api";
+
+function UpdateProductPage() {
+
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [product, setProduct] = useState({
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+    imageUrl: ""
+  });
+
+  // 🔥 Load product details
+  useEffect(() => {
+    API.get('/products/details/' + id)
+      .then(res => {
+        setProduct(res.data);
+      })
+      .catch(() => {
+        alert("Failed to load product");
+      });
+  }, [id]);
+
+  // 🔥 Handle change
+  const handleChange = (e) => {
+    setProduct({
+      ...product,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // 🔥 Update product
+  const handleUpdate = () => {
+    API.put('/products/' + id, product)
+      .then(() => {
+        alert("Product updated");
+        navigate("/seller-dashboard");
+      })
+      .catch(() => {
+        alert("Update failed");
+      });
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Paper elevation={6} sx={{ padding: 4, marginTop: 8 }}>
+
+        <Typography variant="h4" gutterBottom>
+          Update Product
+        </Typography>
+
+        <Box display="flex" flexDirection="column" gap={2}>
+
+          <TextField
+            label="Name"
+            name="name"
+            value={product.name}
+            onChange={handleChange}
+          />
+
+          <TextField
+            label="Description"
+            name="description"
+            value={product.description}
+            onChange={handleChange}
+          />
+
+          <TextField
+            label="Price"
+            name="price"
+            type="number"
+            value={product.price}
+            onChange={handleChange}
+          />
+
+          <TextField
+            label="Category"
+            name="category"
+            value={product.category}
+            onChange={handleChange}
+          />
+
+          <TextField
+            label="Image URL"
+            name="imageUrl"
+            value={product.imageUrl}
+            onChange={handleChange}
+          />
+
+          <Button
+            variant="contained"
+            onClick={handleUpdate}
+          >
+            Update Product
+          </Button>
+
+        </Box>
+
+      </Paper>
+    </Container>
+  );
+}
+
+export default UpdateProductPage;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\services\api.js =====
+
+// import axios from "axios";
+
+// const API = axios.create({
+//   baseURL: "http://localhost:8080",
+// });
+
+// API.interceptors.request.use((config) => {
+//   const token = localStorage.getItem("token");
+//   if (token) {
+//     config.headers.Authorization = `Bearer ${token}`;
+//   }
+//   return config;
+// });
+
+// export default API;
+// 
+
+import axios from "axios";
+
+const API = axios.create({
+  baseURL: "http://192.168.1.7:8080",
+});
+
+// 🔐 REQUEST INTERCEPTOR (attach token)
+API.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// 🚨 RESPONSE INTERCEPTOR (handle errors globally)
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+
+    const status = error.response?.status;
+
+    // 🔴 Token expired / unauthorized
+    if (status === 401) {
+      localStorage.removeItem("token");
+
+      alert("Session expired. Please login again.");
+
+      window.location.href = "/login";
+    }
+
+    // 🔴 Server error
+    if (status === 500) {
+      console.error("Server Error:", error.response?.data);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default API;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\App.js =====
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import ProductsPage from "./pages/ProductsPage";
+import LoginPage from "./pages/LoginPage";
+import Navbar from "./components/Navbar";
+import AddProductPage from "./pages/AddProductPage";
+import SellerOrdersPage from "./pages/SellersOrdersPage";
+import MyOrdersPage from "./pages/MyOrdersPage";
+import ProductDetailsPage from "./pages/ProductDetailsPage";
+import CartPage from "./pages/CartPage";
+import SellerDashboardPage from "./pages/SellerDashboard";
+import UpdateProductPage from "./pages/UpdateProductPage";
+import RegisterPage from "./pages/RegisterPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminRoute from "./pages/AdminRoute";
+import RequestsPage from "./pages/RequestsPage";
+import CommunityPage from "./pages/CommunityPage";
+import DiscussionPage from "./pages/DiscussionPage";
+import GlobalSearchPage from "./pages/GlobalSearchPage";
+
+
+
+function App() {
+  return (
+    <Router>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<ProductsPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/add-product" element={<AddProductPage />} />
+        <Route path="/seller-orders" element={<SellerOrdersPage />} />
+        <Route path="/my-orders" element={<MyOrdersPage />} />
+        <Route path="/product/:id" element={<ProductDetailsPage />} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/seller-dashboard" element={<SellerDashboardPage />} />
+        <Route path="/update-product/:id" element={<UpdateProductPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/admin" element={  <AdminRoute>   <AdminDashboardPage /> </AdminRoute>  }/> 
+        <Route path="/requests" element={<RequestsPage />} />
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community/post/:id" element={<DiscussionPage />} />
+        <Route path="/smart-search" element={<GlobalSearchPage />} />
+        </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\index.css =====
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\index.js =====
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\reportWebVitals.js =====
+
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+===== D:\Collageproject\frontend\marketplace-frontend\src\setupTests.js =====
+
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';

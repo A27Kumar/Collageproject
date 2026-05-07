@@ -19,4 +19,6 @@ public class User {
     @Indexed(unique = true)
     private String email;
     private boolean banned = false;
+    private String city;
+    private String college;
 }

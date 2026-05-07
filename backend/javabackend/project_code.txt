@@ -1,0 +1,2597 @@
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\DemoApplication.java =====
+
+// // package com.example.demo;
+
+// // import org.springframework.boot.SpringApplication;
+// // import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+// // @SpringBootApplication
+// // public class DemoApplication {
+
+// // 	public static void main(String[] args) {
+// // 		SpringApplication.run(DemoApplication.class, args);
+// // 	}
+
+// // }
+
+// package com.javabackend.marketplace;
+
+// import org.springframework.boot.SpringApplication;
+// import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+// @SpringBootApplication
+// public class DemoApplication {
+
+//     public static void main(String[] args) {
+//         SpringApplication.run(DemoApplication.class, args);
+//     }
+// }
+
+package com.javabackend.marketplace;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.UserRepository;
+
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+@SpringBootApplication
+public class DemoApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+    }
+
+    // 🔥 ADD HERE
+    @Bean
+    CommandLineRunner initAdmin(UserRepository repo) {
+        return args -> {
+            if (repo.findByEmail("admin@gmail.com") == null) {
+
+                User admin = new User();
+                admin.setName("Admin");
+                admin.setEmail("admin@gmail.com");
+
+                admin.setPassword(
+                    new BCryptPasswordEncoder().encode("admin123")
+                );
+
+                admin.setRole("ADMIN");
+
+                repo.save(admin);
+
+                // System.out.println("Admin user created:" + admin.getEmail() + " / admin123");
+            }
+        };
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\config\AuthContext.java =====
+
+
+package com.javabackend.marketplace.config;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class AuthContext {
+
+    private static HttpServletRequest request;
+
+    @Autowired
+    public AuthContext(HttpServletRequest request) {
+        AuthContext.request = request;
+    }
+
+    public static String getUserId() {
+        return (String) request.getAttribute("userId");
+    }
+
+    public static String getRole() {
+        return (String) request.getAttribute("role");
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\config\CorsConfig.java =====
+
+
+package com.javabackend.marketplace.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class CorsConfig {
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**")
+                        .allowedOrigins(
+                          "http://localhost:3000",
+                          "http://192.168.1.7:3000"
+                     )
+                        .allowedMethods("*")
+                        .allowedHeaders("*")
+                        .allowCredentials(true);
+            }
+        };
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\config\FilterConfig.java =====
+
+
+package com.javabackend.marketplace.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+
+@Configuration
+public class FilterConfig {
+
+    @Bean
+    public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter jwtFilter) {
+
+        FilterRegistrationBean<JwtFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(jwtFilter);
+        registrationBean.addUrlPatterns("/*"); // Apply to all endpoints
+        registrationBean.setOrder(1);
+
+        return registrationBean;
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\config\JwtFilter.java =====
+
+
+
+package com.javabackend.marketplace.config;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.http.HttpStatus;
+
+import java.io.IOException;
+
+@Component
+public class JwtFilter implements Filter {
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Override
+    public void doFilter(ServletRequest request,
+                         ServletResponse response,
+                         FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        String header = httpRequest.getHeader("Authorization");
+
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
+
+            try {
+                Claims claims = jwtUtil.extractClaims(token);
+
+                request.setAttribute("userId", claims.getSubject());
+                request.setAttribute("role", claims.get("role"));
+
+            } catch (JwtException e) {
+                httpResponse.setStatus(HttpStatus.UNAUTHORIZED.value());
+                httpResponse.getWriter().write("Invalid or expired token");
+                return;
+            }
+        }
+
+        chain.doFilter(request, response);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\config\JwtUtil.java =====
+
+
+package com.javabackend.marketplace.config;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.stereotype.Component;
+
+import java.security.Key;
+import java.util.Date;
+
+@Component
+public class JwtUtil {
+
+    private final String SECRET = "my_super_secure_secret_key_which_is_long_enough_123456";
+    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+
+    public String generateToken(String userId, String role, String city, String college) {
+        return Jwts.builder()
+                .setSubject(userId)
+                .claim("role", role)
+                .claim("city", city)
+                .claim("college", college)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 86400000))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public Claims extractClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\AdminController.java =====
+
+package com.javabackend.marketplace.controller;
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.dto.AdminStats;
+import com.javabackend.marketplace.model.Order;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.OrderRepository;
+import com.javabackend.marketplace.repository.ProductRepository;
+import com.javabackend.marketplace.repository.ReviewRepository;
+import com.javabackend.marketplace.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/admin")
+public class AdminController {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    // ✅ USERS
+    @GetMapping("/users")
+    public List<User> getUsers() {
+        checkAdmin();
+        return userRepository.findAll();
+    }
+
+    // ✅ DELETE USER
+    @DeleteMapping("/user/{id}")
+    public String deleteUser(@PathVariable String id) {
+        checkAdmin();
+        userRepository.deleteById(id);
+        return "User deleted";
+    }
+
+    // ✅ BAN USER
+    @PutMapping("/ban/{id}")
+    public String banUser(@PathVariable String id) {
+     checkAdmin();
+
+      User user = userRepository.findById(id).orElseThrow();
+      user.setBanned(true);
+      userRepository.save(user);
+
+      return "User banned";
+    }
+
+    @PutMapping("/unban/{id}")
+    public String unbanUser(@PathVariable String id) {
+     checkAdmin();
+
+      User user = userRepository.findById(id).orElseThrow();
+      user.setBanned(false);
+      userRepository.save(user);
+
+      return "User unbanned";
+    }
+    
+    @PutMapping("/approve/{id}")
+    public String approveProduct(@PathVariable String id) {
+     checkAdmin();
+
+       Product product = productRepository.findById(id).orElseThrow();
+       product.setApproved(true);
+       product.setNotified(false); // Reset notification flag
+       productRepository.save(product);
+
+       return "Product approved";
+    }
+
+    @GetMapping("/pending-products")
+    public List<Product> getPendingProducts() {
+     checkAdmin();
+      return productRepository.findByApprovedFalse();
+   }
+
+    @GetMapping("/stats")
+    public AdminStats getStats() {
+
+    checkAdmin();
+
+    long users = userRepository.count();
+    long products = productRepository.count();
+    long orders = orderRepository.count();
+
+    double revenue = orderRepository.findAll()
+            .stream()
+            .filter(o -> "CONFIRMED".equals(o.getStatus()))
+            .mapToDouble(Order::getPrice)
+            .sum();
+
+    return new AdminStats(users, products, orders, revenue);
+    }
+
+    // ✅ PRODUCTS
+    @GetMapping("/products")
+    public List<Product> getProducts() {
+        checkAdmin();
+        return productRepository.findAll();
+    }
+
+    @DeleteMapping("/product/{id}")
+    public String deleteProduct(@PathVariable String id) {
+        checkAdmin();
+        productRepository.deleteById(id);
+        return "Product removed";
+    }
+
+    // ✅ REVIEWS
+    @DeleteMapping("/review/{id}")
+    public String deleteReview(@PathVariable String id) {
+        checkAdmin();
+        reviewRepository.deleteById(id);
+        return "Review removed";
+    }
+
+    // ✅ ORDERS
+    @GetMapping("/orders")
+    public List<Order> getOrders() {
+        checkAdmin();
+        return orderRepository.findAll();
+    }
+
+    private void checkAdmin() {
+        String role = AuthContext.getRole();
+
+         if (!"ADMIN".equalsIgnoreCase(role)) {
+             throw new IllegalArgumentException("Unauthorized");
+         }
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\CommentController.java =====
+
+package com.javabackend.marketplace.controller;
+import com.javabackend.marketplace.model.Comment;
+import com.javabackend.marketplace.service.CommentService;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/comments")
+public class CommentController {
+
+    @Autowired
+    private CommentService commentService;
+
+    @PostMapping
+    public Comment addComment(@RequestBody Comment comment) {
+        return commentService.addComment(comment);
+    }
+
+    @GetMapping("/{postId}")
+    public List<Comment> getComments(
+            @PathVariable String postId) {
+
+        return commentService.getPostComments(postId);
+    }
+
+    @PutMapping("/{id}/like")
+    public Comment likeComment(@PathVariable String id) {
+        return commentService.likeComment(id);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\CommunityPostController.java =====
+
+package com.javabackend.marketplace.controller;
+
+import com.javabackend.marketplace.model.CommunityPost;
+import com.javabackend.marketplace.service.CommunityPostService;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/community")
+public class CommunityPostController {
+
+    @Autowired
+    private CommunityPostService communityPostService;
+
+    @PostMapping
+    public CommunityPost createPost(
+            @RequestBody CommunityPost post) {
+
+        return communityPostService.createPost(post);
+    }
+
+    @GetMapping("/nearby")
+    public List<CommunityPost> getNearbyPosts(
+            @RequestParam String city,
+            @RequestParam String college) {
+
+        return communityPostService.getNearbyPosts(city, college);
+    }
+
+    @PutMapping("/{id}/like")
+    public CommunityPost likePost(@PathVariable String id) {
+        return communityPostService.likePost(id);
+    }
+
+    @GetMapping("/post/{id}")
+    public CommunityPost getPost(
+        @PathVariable String id) {
+
+    return communityPostService.getPost(id);
+    }
+
+    @GetMapping("/trending")
+    public List<CommunityPost> trending() {
+    return communityPostService.getTrendingPosts();
+    }
+    
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\OrderController.java =====
+
+
+
+
+package com.javabackend.marketplace.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import com.javabackend.marketplace.dto.OrderResponse;
+import com.javabackend.marketplace.service.OrderService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/orders")
+public class OrderController {
+
+    @Autowired
+    private OrderService orderService;
+
+    @PostMapping("/{productId}")
+    public OrderResponse placeOrder(@PathVariable String productId) {
+        return orderService.placeOrder(productId);
+    }
+
+    @PutMapping("/confirm/{orderId}")
+    public OrderResponse confirmOrder(@PathVariable String orderId) {
+        return orderService.confirmOrder(orderId);
+    }
+
+    @PutMapping("/cancel/{orderId}")
+    public OrderResponse cancelOrder(@PathVariable String orderId) {
+        return orderService.cancelOrder(orderId);
+    }
+
+    @GetMapping("/buyer")
+    public List<OrderResponse> getOrdersByBuyer() {
+        return orderService.getOrdersByBuyer();
+    }
+
+    @GetMapping("/seller")
+    public List<OrderResponse> getOrdersBySeller() {
+        return orderService.getOrdersBySeller();
+    }
+
+    @PutMapping("/deliver/{orderId}")
+    public OrderResponse deliverOrder(@PathVariable String orderId) {
+        return orderService.deliverOrder(orderId);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\ProductController.java =====
+
+
+package com.javabackend.marketplace.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+
+import com.javabackend.marketplace.dto.ProductResponse;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.service.ProductService;
+
+import lombok.RequiredArgsConstructor;
+
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.repository.ProductRepository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+@RestController
+@RequestMapping("/products")
+@RequiredArgsConstructor
+public class ProductController {
+
+    @Autowired
+    private ProductService productService;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    // ✅ Add Product
+    @PostMapping
+    public ProductResponse addProduct(@RequestBody Product product) {
+        return productService.addProduct(product);
+    }
+
+    // ✅ UPDATED FILTER API
+    @GetMapping
+    public Page<ProductResponse> getProducts(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(required = false) Double maxPrice,
+            @RequestParam(required = false) Double minRating,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String college,
+            @PageableDefault(size = 6) Pageable pageable) {
+
+        return productService.getProducts(
+                category, search, minPrice, maxPrice, minRating, sortBy, city, college, pageable
+        );
+    }
+
+    // ✅ Seller Products
+    @GetMapping("/seller")
+    public List<ProductResponse> getSellerProducts() {
+        String sellerId = AuthContext.getUserId();
+        return productService.getProductsBySeller(sellerId);
+    }
+
+    // ✅ Update Product
+    @PutMapping("/{productId}")
+    public ProductResponse updateProduct(
+            @PathVariable String productId,
+            @RequestBody Product product) {
+
+        return productService.updateProduct(productId, product);
+    }
+
+    // ✅ Delete Product
+    @DeleteMapping("/{productId}")
+    public String deleteProduct(@PathVariable String productId) {
+        productService.deleteProduct(productId);
+        return "Product deleted successfully";
+    }
+
+    // ✅ Get Product by ID
+    @GetMapping("/details/{id}")
+    public ProductResponse getProductById(@PathVariable String id) {
+        return productService.getProductById(id);
+    }
+
+    // 🔥 GET NOTIFICATIONS (FIXED NAME)
+    @GetMapping("/seller/notifications")
+    public List<Product> getNotifications() {
+        String sellerId = AuthContext.getUserId();
+        return productRepository
+                .findBySellerIdAndApprovedTrueAndNotifiedFalse(sellerId);
+    }
+
+    //City
+    // 🔥 2.1 Nearby Products API
+    @GetMapping("/nearby")
+     public Map<String, List<ProductResponse>> getNearbyProducts(
+        @RequestParam String city,
+        @RequestParam String college) {
+
+    // 🔥 College products
+    List<ProductResponse> collegeProducts = productRepository
+            .findByCollegeContainingIgnoreCase(college)
+            .stream()
+            .filter(Product::isApproved)
+            .map(productService::convertToResponse)
+            .toList();
+
+    // 🔥 City products
+    List<ProductResponse> cityProducts = productRepository
+            .findByCityContainingIgnoreCase(city)
+            .stream()
+            .filter(Product::isApproved)
+            .map(productService::convertToResponse)
+            .toList();
+
+    Map<String, List<ProductResponse>> result = new HashMap<>();
+
+    result.put("college", collegeProducts);
+    result.put("city", cityProducts);
+
+    return result;
+    }
+
+
+     
+
+    // 🔥 MARK AS READ (SECURE)
+    @PutMapping("/seller/notify-read/{id}")
+    public void markAsRead(@PathVariable String id) {
+
+        String sellerId = AuthContext.getUserId();
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        if (!product.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        product.setNotified(true);
+        productRepository.save(product);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\RequestController.java =====
+
+package com.javabackend.marketplace.controller;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import com.javabackend.marketplace.dto.ProductResponse;
+import com.javabackend.marketplace.model.Request;
+import com.javabackend.marketplace.service.RequestService;
+import java.util.List;
+
+@RestController
+@RequestMapping("/requests")
+public class RequestController {
+
+    @Autowired
+    private RequestService requestService;
+
+    @PostMapping
+    public Request create(@RequestBody Request request) {
+        return requestService.createRequest(request);
+    }
+
+    @GetMapping("/nearby")
+    public List<Request> nearby(
+            @RequestParam String city,
+            @RequestParam String college) {
+
+        return requestService.getNearbyRequests(city, college);
+    }
+
+    @GetMapping("/{requestId}/matches")
+    public List<ProductResponse> getMatchingProducts(@PathVariable String requestId) {
+    return requestService.getMatchingProducts(requestId);
+}
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\ReviewController.java =====
+
+package com.javabackend.marketplace.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import com.javabackend.marketplace.dto.ReviewResponse;
+import com.javabackend.marketplace.service.ReviewService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/reviews")
+public class ReviewController {
+
+    @Autowired
+    private ReviewService reviewService;
+
+    // ✅ ADD
+    @PostMapping("/{productId}")
+    public ReviewResponse addReview(
+            @PathVariable String productId,
+            @RequestParam int rating,
+            @RequestParam String comment) {
+
+        return reviewService.addReview(productId, rating, comment);
+    }
+
+    // ✅ GET
+    @GetMapping("/{productId}")
+    public List<ReviewResponse> getReviews(
+          @PathVariable String productId,
+          @RequestParam(defaultValue = "latest") String sort) {
+
+        return reviewService.getReviews(productId, sort);
+   }
+
+    // ✅ UPDATE
+    @PutMapping("/{reviewId}")
+    public ReviewResponse update(
+            @PathVariable String reviewId,
+            @RequestParam int rating,
+            @RequestParam String comment) {
+
+        return reviewService.updateReview(reviewId, rating, comment);
+    }
+
+    // ✅ DELETE
+    @DeleteMapping("/{reviewId}")
+    public String delete(@PathVariable String reviewId) {
+        reviewService.deleteReview(reviewId);
+        return "Deleted successfully";
+    }
+
+    // ✅ LIKE
+    @PutMapping("/like/{reviewId}")
+    public String like(@PathVariable String reviewId) {
+        reviewService.likeReview(reviewId);
+        return "Liked";
+    }
+
+    // ✅ SELLER REPLY
+    @PutMapping("/reply/{reviewId}")
+     public ReviewResponse reply(
+          @PathVariable String reviewId,
+          @RequestParam String reply) {
+       return reviewService.replyToReview(reviewId, reply);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\SearchController.java =====
+
+package com.javabackend.marketplace.controller;
+
+import com.javabackend.marketplace.dto.GlobalSearchResponse;
+import com.javabackend.marketplace.service.SearchService;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/search")
+public class SearchController {
+
+    @Autowired
+    private SearchService searchService;
+
+    @GetMapping("/global")
+    public GlobalSearchResponse search(
+            @RequestParam String query) {
+
+        return searchService.globalSearch(query);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\controller\UserController.java =====
+
+
+
+package com.javabackend.marketplace.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import com.javabackend.marketplace.dto.LoginRequest;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.UserRepository;
+import com.javabackend.marketplace.service.UserService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/users")
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @PostMapping("/register")
+    public User register(@RequestBody User user) {
+        return userService.registerUser(user);
+    }
+
+    @GetMapping
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    @PostMapping("/login")
+    public String login(@RequestBody LoginRequest request) {
+        return userService.loginUser(request);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\AdminStats.java =====
+
+package com.javabackend.marketplace.dto;
+
+
+
+import lombok.Data;
+
+@Data
+
+
+public class AdminStats {
+    private long users;
+    private long products;
+    private long orders;
+    private double revenue;
+
+    public AdminStats(long users, long products, long orders, double revenue) {
+        this.users = users;
+        this.products = products;
+        this.orders = orders;
+        this.revenue = revenue;
+    }
+
+    // getters
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\ErrorResponse.java =====
+
+package com.javabackend.marketplace.dto;
+
+import java.time.LocalDateTime;
+
+public class ErrorResponse {
+
+    private boolean success;
+    private String message;
+    private int status;
+    private LocalDateTime timestamp;
+
+    public ErrorResponse(boolean success, String message, int status) {
+        this.success = success;
+        this.message = message;
+        this.status = status;
+        this.timestamp = LocalDateTime.now();
+    }
+
+    public boolean isSuccess() { return success; }
+    public String getMessage() { return message; }
+    public int getStatus() { return status; }
+    public LocalDateTime getTimestamp() { return timestamp; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\GlobalSearchResponse.java =====
+
+package com.javabackend.marketplace.dto;
+
+import com.javabackend.marketplace.dto.ProductResponse;
+import com.javabackend.marketplace.model.Request;
+import com.javabackend.marketplace.model.CommunityPost;
+
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class GlobalSearchResponse {
+
+    private List<ProductResponse> products;
+
+    private List<Request> requests;
+
+    private List<CommunityPost> posts;
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\LoginRequest.java =====
+
+package com.javabackend.marketplace.dto;
+
+public class LoginRequest {
+
+    private String email;
+    private String password;
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\LoginResponse.java =====
+
+
+package com.javabackend.marketplace.dto;
+
+public class LoginResponse {
+
+    private String message;
+    private String userId;
+
+    public LoginResponse(String message, String userId) {
+        this.message = message;
+        this.userId = userId;
+    }
+
+    public String getMessage() { return message; }
+    public String getUserId() { return userId; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\OrderResponse.java =====
+
+
+
+package com.javabackend.marketplace.dto;
+
+import java.time.LocalDateTime;
+
+public class OrderResponse {
+
+    private String id;
+    private String productName;
+    private double price;
+    private LocalDateTime orderDate;
+    private String status;
+
+    public OrderResponse(String id, String productName, double price, LocalDateTime orderDate, String status) {
+        this.id = id;
+        this.productName = productName;
+        this.price = price;
+        this.orderDate = orderDate;
+        this.status = status;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public LocalDateTime getOrderDate() {
+        return orderDate;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\ProductResponse.java =====
+
+package com.javabackend.marketplace.dto;
+
+public class ProductResponse {
+
+    private String id;
+    private String imageUrl;
+    private String name;
+    private String description;
+    private double price;
+    private String category;
+
+    private double avgRating;
+    private int totalReviews;
+
+    private boolean approved;
+
+    public ProductResponse(
+            String id,
+            String name,
+            String description,
+            double price,
+            String category,
+            String imageUrl,
+            double avgRating,
+            int totalReviews,
+            boolean approved
+    ) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.price = price;
+        this.category = category;
+        this.imageUrl = imageUrl;
+        this.avgRating = avgRating;
+        this.totalReviews = totalReviews;
+        this.approved = approved;
+    }
+
+    public String getId() { return id; }
+    public String getName() { return name; }
+    public String getImageUrl() { return imageUrl; }
+    public String getDescription() { return description; }
+    public double getPrice() { return price; }
+    public String getCategory() { return category; }
+
+    public double getAvgRating() { return avgRating; }
+    public int getTotalReviews() { return totalReviews; }
+    public boolean isApproved() { return approved; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\dto\ReviewResponse.java =====
+
+package com.javabackend.marketplace.dto;
+
+import lombok.Data;
+import lombok.AllArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@AllArgsConstructor
+public class ReviewResponse {
+    private String id;
+    private int rating;
+    private String comment;
+    private LocalDateTime createdAt;
+    private boolean verified;
+    private int likes;
+    private String userId;
+    private String sellerReply;
+    private LocalDateTime replyAt;
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\exception\GlobalExceptionHandler.java =====
+
+// package com.example.demo.exception;
+
+// import org.springframework.http.HttpStatus;
+// import org.springframework.http.ResponseEntity;
+// import org.springframework.web.bind.annotation.*;
+
+// @RestControllerAdvice
+// public class GlobalExceptionHandler {
+
+//     @ExceptionHandler(IllegalArgumentException.class)
+//     public ResponseEntity<String> handleDuplicateEmail(IllegalArgumentException ex) {
+//         return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+//     }
+// }
+
+package com.javabackend.marketplace.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.javabackend.marketplace.dto.ErrorResponse;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+
+        ErrorResponse error = new ErrorResponse(
+                false,
+                ex.getMessage(),
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
+
+        ErrorResponse error = new ErrorResponse(
+                false,
+                "Something went wrong",
+                HttpStatus.INTERNAL_SERVER_ERROR.value()
+        );
+
+        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\Comment.java =====
+
+package com.javabackend.marketplace.model;
+
+import lombok.Data;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document(collection = "comments")
+@Data
+public class Comment {
+
+    @Id
+    private String id;
+
+    private String postId;
+
+    private String parentCommentId; // 🔥 for replies
+
+    private String content;
+
+    private String userId;
+
+    private int likes = 0;
+
+    private String userName;
+
+    private String college;
+    
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\CommunityPost.java =====
+
+package com.javabackend.marketplace.model;
+
+import lombok.Data;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document(collection = "community_posts")
+@Data
+public class CommunityPost {
+
+    @Id
+    private String id;
+
+    private String title;
+    private String content;
+    private String category;
+
+    private String userId;
+
+    private String city;
+    private String college;
+
+    private int likes = 0;
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\Order.java =====
+
+
+package com.javabackend.marketplace.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.time.LocalDateTime;
+
+@Document(collection = "orders")
+public class Order {
+
+    @Id
+    private String id;
+
+    private String productId;
+    private String buyerId;
+    private String sellerId;
+    private double price;
+    private LocalDateTime orderDate;
+    private String status;
+
+    public Order() {}
+
+    public Order(String productId, String buyerId, String sellerId, double price, LocalDateTime orderDate, String status) {
+        this.productId = productId;
+        this.buyerId = buyerId;
+        this.sellerId = sellerId;
+        this.price = price;
+        this.orderDate = orderDate;
+        this.status = status;
+    }
+
+    public String getId() { return id; }
+    public String getProductId() { return productId; }
+    public String getBuyerId() { return buyerId; }
+    public String getSellerId() { return sellerId; }
+    public double getPrice() { return price; }
+    public LocalDateTime getOrderDate() { return orderDate; }
+    public String getStatus() { return status; }
+
+    public void setStatus(String status) { this.status = status; }
+    public void setId(String id) { this.id = id; }
+    public void setProductId(String productId) { this.productId = productId; }
+    public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
+    public void setSellerId(String sellerId) { this.sellerId = sellerId; }
+    public void setPrice(double price) { this.price = price; }
+    public void setOrderDate(LocalDateTime orderDate) { this.orderDate = orderDate; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\Product.java =====
+
+package com.javabackend.marketplace.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document(collection = "products")
+public class Product {
+
+    @Id
+    private String id;
+    private String imageUrl;
+    private String name;
+    private String description;
+    private double price;
+    private String category;
+    private String sellerId;
+    private boolean approved = false;
+    private boolean notified = false;
+    private String city;
+    private String college;
+
+    public Product() {}
+
+    public String getId() { return id; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public double getPrice() { return price; }
+    public void setPrice(double price) { this.price = price; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public String getSellerId() { return sellerId; }
+    public void setSellerId(String sellerId) { this.sellerId = sellerId; }
+
+    public boolean isApproved() { return approved; }
+    public void setApproved(boolean approved) { this.approved = approved; }
+
+    public boolean isNotified() { return notified; }
+    public void setNotified(boolean notified) { this.notified = notified; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getCollege() { return college; }
+    public void setCollege(String college) { this.college = college; }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\Request.java =====
+
+package com.javabackend.marketplace.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import lombok.Data;
+
+@Data
+@Document(collection = "requests")
+public class Request {
+
+    @Id
+    private String id;
+
+    private String title;
+    private String description;
+
+    private String userId;
+
+    private String city;
+    private String college;
+
+    private boolean fulfilled = false;
+
+   
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\Review.java =====
+
+package com.javabackend.marketplace.model;
+
+import lombok.Data;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.time.LocalDateTime;
+
+@Data
+@Document(collection = "reviews")
+public class Review {
+
+    @Id
+    private String id;
+
+    private String productId;
+    private String userId;
+
+    private int rating;
+    private String comment;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    
+    private boolean verified;
+    private int likes;
+
+    private String sellerReply;
+    private LocalDateTime replyAt;
+
+    public Review() {
+        this.createdAt = LocalDateTime.now();
+        this.likes = 0;
+        this.verified = false;
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\model\User.java =====
+
+package com.javabackend.marketplace.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import lombok.Data;
+import org.springframework.data.mongodb.core.index.Indexed;
+
+@Document(collection = "users")
+@Data
+public class User {
+
+    @Id
+    private String id;
+
+    private String name;
+    // private String email;
+    private String password;
+    private String role;
+    @Indexed(unique = true)
+    private String email;
+    private boolean banned = false;
+    private String city;
+    private String college;
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\CommentRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import com.javabackend.marketplace.model.Comment;
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+import java.util.List;
+
+public interface CommentRepository
+        extends MongoRepository<Comment, String> {
+
+    List<Comment> findByPostId(String postId);
+
+    List<Comment> findByParentCommentId(String parentCommentId);
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\CommunityPostRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import com.javabackend.marketplace.model.CommunityPost;
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+import java.util.List;
+
+public interface CommunityPostRepository
+        extends MongoRepository<CommunityPost, String> {
+
+    List<CommunityPost> findByCollegeIgnoreCase(String college);
+
+    List<CommunityPost> findByCityIgnoreCase(String city);
+
+    List<CommunityPost> findAllByOrderByLikesDesc();
+
+    List<CommunityPost> findByTitleContainingIgnoreCase(String keyword);
+
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\OrderRepository.java =====
+
+
+
+package com.javabackend.marketplace.repository;
+import java.util.List;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+import com.javabackend.marketplace.model.Order;
+
+public interface OrderRepository extends MongoRepository<Order, String> {
+
+List<Order> findByBuyerId(String buyerId);
+List<Order> findBySellerId(String sellerId);
+boolean existsByProductIdAndBuyerIdAndStatusIn(String productId, String buyerId, List<String> statuses);
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\ProductRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import com.javabackend.marketplace.model.Product;
+
+import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+public interface ProductRepository extends MongoRepository<Product, String> {
+
+    List<Product> findBySellerId(String sellerId);
+
+    Page<Product> findByCategory(String category, Pageable pageable);
+
+    // 🔥 ADD THESE
+    List<Product> findByNameContainingIgnoreCase(String name);
+
+    Page<Product> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    List<Product> findByApprovedFalse();
+    List<Product> findByApprovedTrue();
+
+    Page<Product> findByApprovedTrue(Pageable pageable);
+
+    Page<Product> findByCategoryAndApprovedTrue(String category, Pageable pageable);
+
+    Page<Product> findByNameContainingIgnoreCaseAndApprovedTrue(String name, Pageable pageable);
+
+    List<Product> findBySellerIdAndApprovedTrueAndNotifiedFalse(String sellerId);
+    
+    Page<Product> findByApprovedTrueAndCollegeIgnoreCase(String college, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCityIgnoreCase(String city, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCollegeIgnoreCaseAndNameContainingIgnoreCase(
+        String college, String name, Pageable pageable);
+
+    Page<Product> findByApprovedTrueAndCityIgnoreCaseAndNameContainingIgnoreCase(
+        String city, String name, Pageable pageable);
+    
+        List<Product> findByCollegeContainingIgnoreCase(String college);
+        List<Product> findByCityContainingIgnoreCase(String city);
+    }
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\RequestRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import com.javabackend.marketplace.model.Request;
+
+import java.util.List;
+
+public interface RequestRepository extends MongoRepository<Request, String> {
+
+    List<Request> findByCollegeContainingIgnoreCase(String college);
+    List<Request> findByCityContainingIgnoreCase(String city);
+    List<Request> findByTitleContainingIgnoreCase(String keyword);
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\ReviewRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import com.javabackend.marketplace.model.Review;
+
+import java.util.List;
+
+public interface ReviewRepository extends MongoRepository<Review, String> {
+    List<Review> findByProductId(String productId);
+    boolean existsByProductIdAndUserId(String productId, String userId);
+    Review findByIdAndUserId(String id, String userId);
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\repository\UserRepository.java =====
+
+package com.javabackend.marketplace.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+import com.javabackend.marketplace.model.User;
+
+public interface UserRepository extends MongoRepository<User, String> { 
+    User findByEmail(String email);
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\CommentService.java =====
+
+package com.javabackend.marketplace.service;
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.model.Comment;
+import com.javabackend.marketplace.repository.CommentRepository;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.UserRepository;
+
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+
+
+@Service
+public class CommentService {
+
+    @Autowired
+    private CommentRepository commentRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    public Comment addComment(Comment comment) {
+
+         String userId = AuthContext.getUserId();
+
+          User user = userRepository.findById(userId)
+        .orElseThrow();
+
+       comment.setUserId(userId);
+       comment.setUserName(user.getName());
+       comment.setCollege(user.getCollege());
+
+        return commentRepository.save(comment);
+    }
+
+    public List<Comment> getPostComments(String postId) {
+        return commentRepository.findByPostId(postId);
+    }
+
+    public Comment likeComment(String id) {
+
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow();
+
+        comment.setLikes(comment.getLikes() + 1);
+
+        return commentRepository.save(comment);
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\CommunityPostService.java =====
+
+package com.javabackend.marketplace.service;
+
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.model.CommunityPost;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.CommunityPostRepository;
+import com.javabackend.marketplace.repository.UserRepository;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class CommunityPostService {
+
+    @Autowired
+    private CommunityPostRepository communityPostRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    public CommunityPost createPost(CommunityPost post) {
+
+        String userId = AuthContext.getUserId();
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        post.setUserId(userId);
+        post.setCity(user.getCity());
+        post.setCollege(user.getCollege());
+
+        return communityPostRepository.save(post);
+    }
+
+    public List<CommunityPost> getNearbyPosts(String city, String college) {
+
+        List<CommunityPost> result = new ArrayList<>();
+
+        if (college != null && !college.isEmpty()) {
+            result.addAll(
+                    communityPostRepository.findByCollegeIgnoreCase(college)
+            );
+        }
+
+        if (city != null && !city.isEmpty()) {
+            result.addAll(
+                    communityPostRepository.findByCityIgnoreCase(city)
+            );
+        }
+
+        return result.stream().distinct().toList();
+    }
+
+    public CommunityPost likePost(String id) {
+
+    CommunityPost post = communityPostRepository.findById(id)
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Post not found"));
+
+    post.setLikes(post.getLikes() + 1);
+
+    return communityPostRepository.save(post);
+    }
+
+    public CommunityPost getPost(String id) {
+
+    return communityPostRepository.findById(id)
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Post not found"));
+    }
+
+    public List<CommunityPost> getTrendingPosts() {
+    return communityPostRepository.findAllByOrderByLikesDesc();
+    }
+    
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\OrderService.java =====
+
+
+
+package com.javabackend.marketplace.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.dto.OrderResponse;
+import com.javabackend.marketplace.model.Order;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.repository.OrderRepository;
+import com.javabackend.marketplace.repository.ProductRepository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class OrderService {
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    // 🔹 Place Order (BUYER only)
+    public OrderResponse placeOrder(String productId) {
+
+        String buyerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (buyerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"BUYER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only buyers can place orders");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        if (product.getSellerId().equals(buyerId)) {
+            throw new IllegalArgumentException("Seller cannot buy own product");
+        }
+
+        Order order = new Order();
+        order.setProductId(productId);
+        order.setBuyerId(buyerId);
+        order.setSellerId(product.getSellerId());
+        order.setPrice(product.getPrice());
+        order.setOrderDate(LocalDateTime.now());
+        order.setStatus("PLACED");
+
+        return convertToResponse(orderRepository.save(order));
+    }
+
+    // 🔹 Confirm Order (SELLER only)
+    public OrderResponse confirmOrder(String orderId) {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (sellerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can confirm orders");
+        }
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+
+        if (!order.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        if (!"PLACED".equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order cannot be confirmed");
+        }
+
+        order.setStatus("CONFIRMED");
+
+        return convertToResponse(orderRepository.save(order));
+    }
+
+    // 🔹 Deliver Order (SELLER only) 🔥 NEW
+    public OrderResponse deliverOrder(String orderId) {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (sellerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can deliver orders");
+        }
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+
+        if (!order.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        if (!"CONFIRMED".equals(order.getStatus())) {
+            throw new IllegalArgumentException("Only confirmed orders can be delivered");
+        }
+
+        order.setStatus("DELIVERED");
+
+        return convertToResponse(orderRepository.save(order));
+    }
+
+    // 🔹 Cancel Order (BUYER only)
+    public OrderResponse cancelOrder(String orderId) {
+
+        String buyerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (buyerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"BUYER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only buyers can cancel orders");
+        }
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+
+        if (!order.getBuyerId().equals(buyerId)) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        if (!"PLACED".equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order cannot be cancelled");
+        }
+
+        order.setStatus("CANCELLED");
+
+        return convertToResponse(orderRepository.save(order));
+    }
+
+    // 🔹 Get Orders By Buyer
+    public List<OrderResponse> getOrdersByBuyer() {
+
+        String buyerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (!"BUYER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only buyers can view orders");
+        }
+
+        return orderRepository.findByBuyerId(buyerId)
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    // 🔹 Get Orders By Seller
+    public List<OrderResponse> getOrdersBySeller() {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can view orders");
+        }
+
+        return orderRepository.findBySellerId(sellerId)
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    // 🔹 Convert Entity → DTO
+    private OrderResponse convertToResponse(Order order) {
+
+        Product product = productRepository.findById(order.getProductId())
+                .orElse(null);
+
+        String productName = (product != null)
+                ? product.getName()
+                : "Unknown Product";
+
+        return new OrderResponse(
+                order.getId(),
+                productName,
+                order.getPrice(),
+                order.getOrderDate(),
+                order.getStatus()
+        );
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\ProductService.java =====
+
+package com.javabackend.marketplace.service;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.dto.ProductResponse;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.model.Review;
+import com.javabackend.marketplace.repository.ProductRepository;
+import com.javabackend.marketplace.repository.ReviewRepository;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.UserRepository;
+
+
+import java.util.List;
+
+@Service
+public class ProductService {
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    // 🔹 Add Product (SELLER only)
+    public ProductResponse addProduct(Product product) {
+
+       
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (sellerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can add products");
+        }
+
+        product.setSellerId(sellerId);
+
+// 🔥 ADD THIS BLOCK (MOST IMPORTANT)
+        User user = userRepository.findById(sellerId)
+           .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+           product.setCity(user.getCity());
+           product.setCollege(user.getCollege());
+
+        product.setApproved(false);
+
+        Product savedProduct = productRepository.save(product);
+
+       
+        return convertToResponse(savedProduct);
+    }
+
+    // 🔹 Get All Products
+    public List<ProductResponse> getAllProducts() {
+        return productRepository.findAll()
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    // 🔹 Get Products By Seller
+    public List<ProductResponse> getProductsBySeller(String sellerId) {
+        return productRepository.findBySellerId(sellerId)
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    // 🔹 Update Product (Owner SELLER only)
+    public ProductResponse updateProduct(String productId, Product updatedProduct) {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (sellerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can update products");
+        }
+
+        Product existingProduct = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        if (!existingProduct.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("You are not authorized to update this product");
+        }
+
+        existingProduct.setName(updatedProduct.getName());
+        existingProduct.setDescription(updatedProduct.getDescription());
+        existingProduct.setPrice(updatedProduct.getPrice());
+        existingProduct.setCategory(updatedProduct.getCategory());
+
+        // 🔥 ADD THIS (important)
+        existingProduct.setImageUrl(updatedProduct.getImageUrl());
+
+        Product savedProduct = productRepository.save(existingProduct);
+
+        return convertToResponse(savedProduct);
+    }
+
+    // 🔹 Delete Product (Owner SELLER only)
+    public void deleteProduct(String productId) {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (sellerId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only sellers can delete products");
+        }
+
+        Product existingProduct = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        if (!existingProduct.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("You are not authorized to delete this product");
+        }
+
+        productRepository.delete(existingProduct);
+    }
+
+    // 🔹 Pagination + Category Filter
+  public Page<ProductResponse> getProducts(
+        String category,
+        String search,
+        Double minPrice,
+        Double maxPrice,
+        Double minRating,
+        String sortBy,
+        String city,
+        String college,
+        Pageable pageable) {
+
+    Page<Product> productPage;
+
+    if (college != null && !college.isEmpty()) {
+    if (search != null && !search.isEmpty()) {
+        productPage = productRepository
+                .findByApprovedTrueAndCollegeIgnoreCaseAndNameContainingIgnoreCase(
+                        college, search, pageable);
+    } else {
+        productPage = productRepository
+                .findByApprovedTrueAndCollegeIgnoreCase(college, pageable);
+    }
+
+    } else if (city != null && !city.isEmpty()) {
+    if (search != null && !search.isEmpty()) {
+        productPage = productRepository
+                .findByApprovedTrueAndCityIgnoreCaseAndNameContainingIgnoreCase(
+                        city, search, pageable);
+    } else {
+        productPage = productRepository
+                .findByApprovedTrueAndCityIgnoreCase(city, pageable);
+    }
+
+    } else {
+    productPage = productRepository.findByApprovedTrue(pageable);
+    }
+
+    List<Product> products = productPage.getContent();
+    // 🔥 STEP 3: Convert to DTO
+    List<ProductResponse> list = products.stream()
+            .map(this::convertToResponse)
+            .toList();
+
+    // 🔥 STEP 4: Apply Filters
+    List<ProductResponse> filtered = list.stream()
+
+            // Category
+            .filter(p -> category == null || category.isEmpty()
+                    || p.getCategory().equalsIgnoreCase(category))
+
+            // Search
+            .filter(p -> search == null || search.isEmpty()
+                    || p.getName().toLowerCase().contains(search.toLowerCase()))
+
+            // Price
+            .filter(p -> minPrice == null || p.getPrice() >= minPrice)
+            .filter(p -> maxPrice == null || p.getPrice() <= maxPrice)
+
+            // Rating
+            .filter(p -> minRating == null || p.getAvgRating() >= minRating)
+
+            .toList();
+
+    // 🔥 STEP 5: Sorting
+    if ("priceLow".equals(sortBy)) {
+        filtered = filtered.stream()
+                .sorted((a, b) -> Double.compare(a.getPrice(), b.getPrice()))
+                .toList();
+
+    } else if ("priceHigh".equals(sortBy)) {
+        filtered = filtered.stream()
+                .sorted((a, b) -> Double.compare(b.getPrice(), a.getPrice()))
+                .toList();
+
+    } else if ("rating".equals(sortBy)) {
+        filtered = filtered.stream()
+                .sorted((a, b) -> Double.compare(b.getAvgRating(), a.getAvgRating()))
+                .toList();
+    }
+
+    // 🔥 STEP 6: Pagination (manual)
+    int start = (int) pageable.getOffset();
+    int end = Math.min(start + pageable.getPageSize(), filtered.size());
+
+    List<ProductResponse> pageContent =
+            (start > filtered.size()) ? List.of() : filtered.subList(start, end);
+
+    return new PageImpl<>(filtered, pageable, productPage.getTotalElements());
+}
+    
+    // 🔹 Get Product By ID
+    public ProductResponse getProductById(String id) {
+
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        return convertToResponse(product);
+    }
+
+     @Autowired
+     private ReviewRepository reviewRepository;
+
+    // 🔹 Convert Entity → DTO
+    public ProductResponse convertToResponse(Product product) {
+
+        //Get Reviews
+        List<Review> reviews = reviewRepository.findByProductId(product.getId());
+          int totalReviews = reviews.size();
+          double avgRating = 0;
+
+          if (!reviews.isEmpty()) {
+              avgRating = reviews.stream()
+                      .mapToInt(Review::getRating)
+                      .average()
+                      .orElse(0);
+          }
+
+          avgRating = Math.round(avgRating * 10.0) / 10.0; // Round to 1 decimal place
+
+        return new ProductResponse(
+                product.getId(),
+                product.getName(),
+                product.getDescription(),
+                product.getPrice(),
+                product.getCategory(),
+                product.getImageUrl(), // 🔥 FINAL FIX
+                avgRating, 
+                totalReviews,
+                product.isApproved()
+        );
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\RequestService.java =====
+
+package com.javabackend.marketplace.service;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.model.Request;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.ProductRepository;
+import com.javabackend.marketplace.repository.RequestRepository;
+import com.javabackend.marketplace.repository.UserRepository;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.dto.ProductResponse;
+
+
+
+
+
+@Service
+public class RequestService {
+
+    @Autowired
+    private RequestRepository requestRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private ProductService productService;
+
+    public Request createRequest(Request request) {
+
+        String userId = AuthContext.getUserId();
+        User user = userRepository.findById(userId)
+        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        request.setUserId(userId);
+        request.setCity(user.getCity());
+        request.setCollege(user.getCollege());
+
+        return requestRepository.save(request);
+    }
+
+    
+    public List<ProductResponse> getMatchingProducts(String requestId) {
+
+    Request request = requestRepository.findById(requestId)
+            .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+
+    // 🔥 Better keyword extraction
+    String keyword = request.getTitle()
+            .replace("Need", "")
+            .replace("need", "")
+            .trim();
+
+    // 🔥 Find matching products
+    List<Product> products = productRepository
+            .findByNameContainingIgnoreCase(keyword);
+
+    return products.stream()
+            .filter(Product::isApproved)
+            .distinct()
+            .map(productService::convertToResponse)
+            .toList();
+    }
+
+    public List<Request> getNearbyRequests(String city, String college) {
+
+    List<Request> result = new ArrayList<>();
+
+    if (college != null && !college.isEmpty()) {
+        result.addAll(
+            requestRepository.findByCollegeContainingIgnoreCase(college)
+        );
+    }
+
+    if (city != null && !city.isEmpty()) {
+        result.addAll(
+            requestRepository.findByCityContainingIgnoreCase(city)
+        );
+    }
+
+    return result.stream().distinct().toList();
+   }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\ReviewService.java =====
+
+package com.javabackend.marketplace.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.javabackend.marketplace.config.AuthContext;
+import com.javabackend.marketplace.dto.ReviewResponse;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.model.Review;
+import com.javabackend.marketplace.repository.OrderRepository;
+import com.javabackend.marketplace.repository.ProductRepository;
+import com.javabackend.marketplace.repository.ReviewRepository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class ReviewService {
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    // ✅ ADD REVIEW
+    public ReviewResponse addReview(String productId, int rating, String comment) {
+
+        String userId = AuthContext.getUserId();
+
+        if (userId == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        // ❌ Seller cannot review
+        if (product.getSellerId().equals(userId)) {
+            throw new IllegalArgumentException("You cannot review your own product");
+        }
+
+        // ❌ Duplicate review
+        if (reviewRepository.existsByProductIdAndUserId(productId, userId)) {
+            throw new IllegalArgumentException("You already reviewed this product");
+        }
+
+        // ❌ Fake review (must purchase)
+        boolean hasPurchased = orderRepository
+                .existsByProductIdAndBuyerIdAndStatusIn(
+                        productId,
+                        userId,
+                        List.of("CONFIRMED", "DELIVERED")
+                );
+
+        if (!hasPurchased) {
+            throw new IllegalArgumentException("You must purchase before reviewing");
+        }
+
+        Review review = new Review();
+        review.setProductId(productId);
+        review.setUserId(userId);
+        review.setRating(rating);
+        review.setComment(comment);
+        review.setVerified(true);
+        review.setCreatedAt(LocalDateTime.now());
+        review.setLikes(0);
+
+        return convert(reviewRepository.save(review));
+    }
+
+    // ✅ GET REVIEWS (WITH SORT)
+    public List<ReviewResponse> getReviews(String productId, String sort) {
+
+        List<Review> reviews = reviewRepository.findByProductId(productId);
+
+        if ("top".equalsIgnoreCase(sort)) {
+            reviews.sort((a, b) -> Integer.compare(b.getRating(), a.getRating()));
+
+        } else if ("liked".equalsIgnoreCase(sort)) {
+            reviews.sort((a, b) -> Integer.compare(b.getLikes(), a.getLikes()));
+
+        } else {
+            // default → latest
+            reviews.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        }
+
+        return reviews.stream()
+                .map(this::convert)
+                .toList();
+    }
+
+    // ✅ UPDATE REVIEW
+    public ReviewResponse updateReview(String reviewId, int rating, String comment) {
+
+        String userId = AuthContext.getUserId();
+
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
+        }
+
+        Review review = reviewRepository.findByIdAndUserId(reviewId, userId);
+
+        if (review == null) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        review.setRating(rating);
+        review.setComment(comment);
+        review.setUpdatedAt(LocalDateTime.now());
+
+        return convert(reviewRepository.save(review));
+    }
+
+    // ✅ DELETE REVIEW
+    public void deleteReview(String reviewId) {
+
+        String userId = AuthContext.getUserId();
+
+        Review review = reviewRepository.findByIdAndUserId(reviewId, userId);
+
+        if (review == null) {
+            throw new IllegalArgumentException("Not authorized");
+        }
+
+        reviewRepository.delete(review);
+    }
+
+    // ✅ LIKE REVIEW
+    public void likeReview(String reviewId) {
+
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("Review not found"));
+
+        review.setLikes(review.getLikes() + 1);
+
+        reviewRepository.save(review);
+    }
+
+    // ✅ SELLER REPLY
+    public ReviewResponse replyToReview(String reviewId, String reply) {
+
+        String sellerId = AuthContext.getUserId();
+        String role = AuthContext.getRole();
+
+        if (!"SELLER".equalsIgnoreCase(role)) {
+            throw new IllegalArgumentException("Only seller can reply");
+        }
+
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("Review not found"));
+
+        Product product = productRepository.findById(review.getProductId())
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        // ❌ Only product owner can reply
+        if (!product.getSellerId().equals(sellerId)) {
+            throw new IllegalArgumentException("Not your product");
+        }
+
+        review.setSellerReply(reply);
+        review.setReplyAt(LocalDateTime.now());
+
+        return convert(reviewRepository.save(review));
+    }
+
+    // 🔄 CONVERT ENTITY → DTO
+    private ReviewResponse convert(Review r) {
+        return new ReviewResponse(
+                r.getId(),
+                r.getRating(),
+                r.getComment(),
+                r.getCreatedAt(),
+                r.isVerified(),
+                r.getLikes(),
+                r.getUserId(),          // 🔥 IMPORTANT
+                r.getSellerReply(),     // 🔥 NEW
+                r.getReplyAt()          // 🔥 NEW
+        );
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\SearchService.java =====
+
+package com.javabackend.marketplace.service;
+
+import com.javabackend.marketplace.dto.GlobalSearchResponse;
+import com.javabackend.marketplace.dto.ProductResponse;
+import com.javabackend.marketplace.model.Product;
+import com.javabackend.marketplace.repository.ProductRepository;
+import com.javabackend.marketplace.repository.RequestRepository;
+import com.javabackend.marketplace.repository.CommunityPostRepository;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class SearchService {
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private RequestRepository requestRepository;
+
+    @Autowired
+    private CommunityPostRepository communityPostRepository;
+
+    @Autowired
+    private ProductService productService;
+
+    public GlobalSearchResponse globalSearch(String query) {
+
+        // 🔥 Products
+        List<ProductResponse> products = productRepository
+                .findByNameContainingIgnoreCase(query)
+                .stream()
+                .filter(Product::isApproved)
+                .map(productService::convertToResponse)
+                .toList();
+
+        // 🔥 Requests
+        var requests = requestRepository
+                .findByTitleContainingIgnoreCase(query);
+
+        // 🔥 Community posts
+        var posts = communityPostRepository
+                .findByTitleContainingIgnoreCase(query);
+
+        GlobalSearchResponse response =
+                new GlobalSearchResponse();
+
+        response.setProducts(products);
+        response.setRequests(requests);
+        response.setPosts(posts);
+
+        return response;
+    }
+}
+
+===== D:\Collageproject\backend\javabackend\src\main\java\com\javabackend\marketplace\service\UserService.java =====
+
+package com.javabackend.marketplace.service;
+ import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.javabackend.marketplace.config.JwtUtil;
+import com.javabackend.marketplace.dto.LoginRequest;
+import com.javabackend.marketplace.dto.LoginResponse;
+import com.javabackend.marketplace.model.User;
+import com.javabackend.marketplace.repository.UserRepository;
+
+
+
+@Service
+public class UserService {
+
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    public User registerUser(User user) {
+
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            throw new IllegalArgumentException("Admin cannot register");
+        }
+
+        // 1. Check duplicate email
+        if (userRepository.findByEmail(user.getEmail()) != null) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        // 2. Hash password
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+
+        User savedUser = userRepository.save(user);
+
+        // 3. Hide password in response
+        savedUser.setPassword(null);
+
+        return savedUser;
+    }
+
+
+   public String loginUser(LoginRequest loginRequest) {
+
+    User user = userRepository.findByEmail(loginRequest.getEmail());
+
+    if (user == null) {
+        throw new IllegalArgumentException("Invalid email or password");
+    }
+    
+    if (user.isBanned()) {
+        throw new IllegalArgumentException("Account is banned");
+    }
+
+    if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+        throw new IllegalArgumentException("Invalid email or password");
+    }
+
+    return jwtUtil.generateToken(
+        user.getId(),
+        user.getRole(),
+        user.getCity(),
+        user.getCollege()
+    );
+}
+
+
+
+
+}
+
+===== D:\Collageproject\backend\javabackend\src\test\java\com\example\demo\DemoApplicationTests.java =====
+
+package com.example.demo;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class DemoApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
